@@ -8,6 +8,3 @@ services:
       dockerfile: Dockerfile
     expose:
       - 8000
-    labels:
-      - traefik.enable=true
-      - traefik.http.services.http-0-tos8ck0k4kw44o80sg8s0g84.loadbalancer.server.port="8000"
