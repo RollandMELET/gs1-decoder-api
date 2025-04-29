@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    # image: 360smartconnect/gs1_decoder_api:latest
+      image: 360smartconnect/gs1_decoder_api:latest
     expose:
       - 8000
     volumes:
