@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 📦 GS1 Decoder API
 
 Microservice pour décoder des codes-barres GS1 (1D/2D) à partir d'une image, avec parsing complet et support verbose.
@@ -43,17 +44,56 @@ Microservice pour décoder des codes-barres GS1 (1D/2D) à partir d'une image, a
 **Scan simple**
 ```bash
 curl -X POST http://votre-domaine/decode/ -F "file=@/chemin/image.png" -F "verbose=false"
+=======
+# GS1 Decoder API
+
+Microservice pour décoder des codes-barres GS1 (1D/2D) à partir d'une image, avec parsing complet et mode verbose.
+
+## Fonctionnalités
+- Scan image → décodage code-barres.
+- Supporte plusieurs codes dans la même image.
+- Parsing GS1 (AI à longueur fixe et variable).
+- Mode `verbose` true/false.
+- Healthcheck `/health`.
+- Documentation Swagger `/docs` et Redoc `/redoc`.
+
+## Déploiement avec Coolify
+1. Créer un nouveau projet Docker dans Coolify.
+2. Uploader ce ZIP.
+3. Build & Deploy (port 8000).
+
+## Utilisation API
+- `POST /decode/`
+  - `file`: fichier image
+  - `verbose`: (bool) optionnel
+- `GET /health/`
+
+## Exemple cURL
+
+**Simple scan**
+```bash
+curl -X POST http://votre-domaine/decode/ \
+ -F "file=@/chemin/image.png" \
+ -F "verbose=false"
+>>>>>>> f6eba4f (Initial commit - upload project files)
 ```
 
 **Scan verbose**
 ```bash
+<<<<<<< HEAD
 curl -X POST http://votre-domaine/decode/ -F "file=@/chemin/image.png" -F "verbose=true"
+=======
+curl -X POST http://votre-domaine/decode/ \
+ -F "file=@/chemin/image.png" \
+ -F "verbose=true"
+>>>>>>> f6eba4f (Initial commit - upload project files)
 ```
 
 **Healthcheck**
 ```bash
 curl http://votre-domaine/health
 ```
+<<<<<<< HEAD
 
 ---
 
@@ -81,3 +121,5 @@ Fais-en ce que tu veux, améliore-le, utilise-le, transforme-le 🚀.
 - UI Web minimaliste pour uploader une image facilement.
 
 ---
+=======
+>>>>>>> f6eba4f (Initial commit - upload project files)
