@@ -3,6 +3,8 @@ from app.gs1_parser import parse_gs1
 from app.models import DecodeResponse, ErrorResponse
 import shutil
 import subprocess
+from pylibdmtx.pylibdmtx import decode as dmtx_decode
+from PIL import Image
 
 app = FastAPI()
 
@@ -10,25 +12,88 @@ app = FastAPI()
 async def health():
     return {"status": "OK"}
 
-@app.post("/decode/", response_model=DecodeResponse, responses={422: {"model": ErrorResponse}})
-async def decode_image(file: UploadFile = File(...), verbose: bool = Form(False)):
+@app.post(
+    "/decode/", 
+    response_model=DecodeResponse,
+    responses={422: {"model": ErrorResponse}}
+)
+async def decode_image(
+    file: UploadFile = File(...),
+    verbose: bool = Form(False),
+    debug: bool = Form(False),
+    log_file: str = Form(None)
+):
+    """
+    Decode GS1 barcodes from an image.
+    Params:
+      - file: image file
+      - verbose: whether to return verbose parse
+      - debug: enable debug logging
+      - log_file: path to write debug logs (server-side)
+    """
     temp_file = f"/tmp/{file.filename}"
     with open(temp_file, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
+    # Optional logging setup
+    logf = None
+    if debug and log_file:
+        try:
+            logf = open(log_file, "w")
+            logf.write(f"[DEBUG] Saved upload to {temp_file}\n")
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Impossible d'ouvrir le fichier de log: {e}")
+
+    # 1) Tentative ZXing
+    cmd = [
+        "java", "-cp", "/zxing/javase/javase.jar",
+        "com.google.zxing.client.j2se.CommandLineRunner", temp_file
+    ]
+    if logf:
+        logf.write(f"[DEBUG] Running ZXing command: {' '.join(cmd)}\n")
+
     result = subprocess.run(
-        ["java", "-cp", "/zxing/javase/javase.jar", "com.google.zxing.client.j2se.CommandLineRunner", temp_file],
-        capture_output=True, text=True
+        cmd,
+        capture_output=True,
+        text=True,
+        stderr=subprocess.PIPE
     )
+    decoded = [line for line in result.stdout.strip().splitlines() if line.strip()]
 
-    decoded_outputs = result.stdout.strip().splitlines()
+    if logf:
+        logf.write(f"[DEBUG] ZXing stdout: {result.stdout}\n")
+        logf.write(f"[DEBUG] ZXing stderr: {result.stderr}\n")
 
-    if not decoded_outputs or all(not line.strip() for line in decoded_outputs):
-        raise HTTPException(status_code=422, detail="Aucun code-barres détecté dans l'image.")
+    # 2) Fallback pylibdmtx si ZXing n'a rien détecté
+    if not decoded:
+        if logf:
+            logf.write("[DEBUG] ZXing n'a rien détecté, essai pylibdmtx...\n")
+        try:
+            img = Image.open(temp_file)
+            dmtx_results = dmtx_decode(img)
+            decoded = [res.data.decode("utf-8") for res in dmtx_results]
+            if logf:
+                logf.write(f"[DEBUG] pylibdmtx found {len(decoded)} codes\n")
+            
+        except Exception as e:
+            if logf:
+                logf.write(f"[DEBUG] Erreur pylibdmtx: {e}\n")
+            decoded = []
+
+    # Fermer le log si ouvert
+    if logf:
+        logf.write(f"[DEBUG] Codes décodés finaux: {decoded}\n")
+        logf.close()
+
+    if not decoded:
+        raise HTTPException(
+            status_code=422,
+            detail="Aucun code-barres détecté dans l'image (ZXing & pylibdmtx)."
+        )
 
     barcodes = []
-    for decoded_text in decoded_outputs:
-        parsed = parse_gs1(decoded_text, verbose)
-        barcodes.append({"raw": decoded_text, "parsed": parsed})
+    for raw in decoded:
+        parsed = parse_gs1(raw, verbose)
+        barcodes.append({"raw": raw, "parsed": parsed})
 
     return {"success": True, "barcodes": barcodes}
