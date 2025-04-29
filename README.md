@@ -42,17 +42,21 @@ Microservice pour décoder des codes-barres GS1 (1D/2D) à partir d'une image, a
 
 **Scan simple**
 ```bash
-curl -X POST http://votre-domaine/decode/ -F "file=@/chemin/image.png" -F "verbose=false"
+curl -X POST https://gs1-decoder-api.rorworld.eu/decode/ \
+  -F "file=@/Users/rollandmelet/Développement/Projets/gs1-decoder-api/imagetest.jpg" \
+  -F "verbose=false"
 ```
 
 **Scan verbose**
 ```bash
-curl -X POST http://votre-domaine/decode/ -F "file=@/chemin/image.png" -F "verbose=true"
+curl -X POST https://gs1-decoder-api.rorworld.eu/decode/ \
+  -F "file=@/Users/rollandmelet/Développement/Projets/gs1-decoder-api/imagetest.jpg" \
+  -F "verbose=true"
 ```
 
 **Healthcheck**
 ```bash
-curl http://votre-domaine/health
+curl https://gs1-decoder-api.rorworld.eu/health
 ```
 
 ---
