@@ -5,15 +5,15 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    image: 360smartconnect/gs1_decoder_api:latest
+    # image: 360smartconnect/gs1_decoder_api:latest
     expose:
       - 8000
     volumes:
       # Monte un répertoire local pour récupérer les logs DEBUG
       - ./logs:/tmp/logs
     labels:
-      - traefik.enable=true
-      - "traefik.http.routers.gs1-api.rule=Host(`gs1-decoder-api.rorworld.eu`)"
-      - "traefik.http.routers.gs1-api.entryPoints=http"
+     - traefik.enable=true
+     - "traefik.http.routers.gs1-api.rule=Host(`gs1-decoder-api.rorworld.eu`)"
+     - "traefik.http.routers.gs1-api.entryPoints=http"
     ports:
       - "8000:8000"

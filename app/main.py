@@ -13,7 +13,7 @@ async def health():
     return {"status": "OK"}
 
 @app.post(
-    "/decode/", 
+    "/decode/",
     response_model=DecodeResponse,
     responses={422: {"model": ErrorResponse}}
 )
@@ -35,7 +35,7 @@ async def decode_image(
     with open(temp_file, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
 
-    # Optional logging setup
+    # Setup debug logging if requested
     logf = None
     if debug and log_file:
         try:
@@ -44,7 +44,7 @@ async def decode_image(
         except Exception as e:
             raise HTTPException(status_code=400, detail=f"Impossible d'ouvrir le fichier de log: {e}")
 
-    # 1) Tentative ZXing
+    # 1) ZXing attempt
     cmd = [
         "java", "-cp", "/zxing/javase/javase.jar",
         "com.google.zxing.client.j2se.CommandLineRunner", temp_file
@@ -55,8 +55,7 @@ async def decode_image(
     result = subprocess.run(
         cmd,
         capture_output=True,
-        text=True,
-        stderr=subprocess.PIPE
+        text=True
     )
     decoded = [line for line in result.stdout.strip().splitlines() if line.strip()]
 
@@ -64,25 +63,24 @@ async def decode_image(
         logf.write(f"[DEBUG] ZXing stdout: {result.stdout}\n")
         logf.write(f"[DEBUG] ZXing stderr: {result.stderr}\n")
 
-    # 2) Fallback pylibdmtx si ZXing n'a rien détecté
+    # 2) Fallback to pylibdmtx if ZXing failed
     if not decoded:
         if logf:
-            logf.write("[DEBUG] ZXing n'a rien détecté, essai pylibdmtx...\n")
+            logf.write("[DEBUG] ZXing found nothing, trying pylibdmtx...\n")
         try:
             img = Image.open(temp_file)
             dmtx_results = dmtx_decode(img)
             decoded = [res.data.decode("utf-8") for res in dmtx_results]
             if logf:
                 logf.write(f"[DEBUG] pylibdmtx found {len(decoded)} codes\n")
-            
         except Exception as e:
             if logf:
-                logf.write(f"[DEBUG] Erreur pylibdmtx: {e}\n")
+                logf.write(f"[DEBUG] pylibdmtx error: {e}\n")
             decoded = []
 
-    # Fermer le log si ouvert
+    # Finalize logs
     if logf:
-        logf.write(f"[DEBUG] Codes décodés finaux: {decoded}\n")
+        logf.write(f"[DEBUG] Final decoded codes: {decoded}\n")
         logf.close()
 
     if not decoded:
@@ -91,6 +89,7 @@ async def decode_image(
             detail="Aucun code-barres détecté dans l'image (ZXing & pylibdmtx)."
         )
 
+    # Parse GS1
     barcodes = []
     for raw in decoded:
         parsed = parse_gs1(raw, verbose)
