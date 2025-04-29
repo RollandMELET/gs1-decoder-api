@@ -1,4 +1,3 @@
-# docker-compose.yaml
 version: '3.8'
 
 services:
@@ -9,13 +8,12 @@ services:
     image: 360smartconnect/gs1_decoder_api:latest
     expose:
       - 8000
-    # Monte un volume pour récupérer tes logs de debug
     volumes:
+      # Monte un répertoire local pour récupérer les logs DEBUG
       - ./logs:/tmp/logs
     labels:
       - traefik.enable=true
       - "traefik.http.routers.gs1-api.rule=Host(`gs1-decoder-api.rorworld.eu`)"
       - "traefik.http.routers.gs1-api.entryPoints=http"
-    # Optionnel : redirige le port interne vers l'extérieur (si besoin en dev)
     ports:
       - "8000:8000"
