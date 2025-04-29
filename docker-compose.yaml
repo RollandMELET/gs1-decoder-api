@@ -2,6 +2,7 @@ version: '3.8'
 
 services:
   app:
+    image: 360smartconnect/gs1_decoder_api:lastest
     build:
       context: .
       dockerfile: Dockerfile
