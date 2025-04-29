@@ -9,14 +9,19 @@ services:
     expose:
       - 8000
     labels:
-      - traefik.enable="true"
-      - traefik.http.middlewares.gzip.compress="true"
-      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme="https"
-      - traefik.http.routers.http-0-tos8ck0k4kw44o80sg8s0g84.entryPoints="http, https"
-      - traefik.http.routers.http-0-tos8ck0k4kw44o80sg8s0g84.middlewares="gzip"
-      - traefik.http.routers.http-0-tos8ck0k4kw44o80sg8s0g84.rule="Host(`gs1-decoder-api.rorworld.eu`) && PathPrefix(`/`)"
-      - traefik.http.routers.http-0-tos8ck0k4kw44o80sg8s0g84.service="http-0-tos8ck0k4kw44o80sg8s0g84"
+      - traefik.enable=true
+      - traefik.http.routers.http-0-tos8ck0k4kw44o80sg8s0g84.entryPoints=http
+      - traefik.http.routers.http-0-tos8ck0k4kw44o80sg8s0g84.rule="Host(`gs1-decoder-api.rorworld.eu`) && PathPrefix(`/`)
       - traefik.http.services.http-0-tos8ck0k4kw44o80sg8s0g84.loadbalancer.server.port="8000"
+
+#      - traefik.enable="true"
+#      - traefik.http.middlewares.gzip.compress="true"
+#      - traefik.http.middlewares.redirect-to-https.redirectscheme.scheme="https"
+#      - traefik.http.routers.http-0-tos8ck0k4kw44o80sg8s0g84.entryPoints="http, https"
+#      - traefik.http.routers.http-0-tos8ck0k4kw44o80sg8s0g84.middlewares="gzip"
+#      - traefik.http.routers.http-0-tos8ck0k4kw44o80sg8s0g84.rule="Host(`gs1-decoder-api.rorworld.eu`) && PathPrefix(`/`)"
+#      - traefik.http.routers.http-0-tos8ck0k4kw44o80sg8s0g84.service="http-0-tos8ck0k4kw44o80sg8s0g84"
+#      - traefik.http.services.http-0-tos8ck0k4kw44o80sg8s0g84.loadbalancer.server.port="8000"
       
 #      - caddy_0.encode="zstd gzip"
 #      - caddy_0.handle_path.0_reverse_proxy="{{upstreams 8000}}"
