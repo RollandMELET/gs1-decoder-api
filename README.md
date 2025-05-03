@@ -53,12 +53,9 @@ curl -X POST https://gs1-decoder-api.rorworld.eu/decode/ \
   "success": true,
   "barcodes": [
     {
-      "raw": "010376042319000511250423310001200021000000309073910239394DHA94UP95ENVELOPPE_NUE_4UF",
+      "raw": "0103760423190005112504233100012000210000003090739102393DHA.4UP.5ENVELOPPE_NUE_4UF",
       "parsed": {
-        "GTIN": "03760423190005",
-        "ExpirationDate": "250423",
-        "InternalInformation": "7391023",
-        "SerialNumber": "00000030"
+        "GTIN": "03760423190005"
       }
     }
   ]
@@ -78,47 +75,12 @@ curl -X POST https://gs1-decoder-api.rorworld.eu/decode/ \
   "success": true,
   "barcodes": [
     {
-      "raw": "010376042319000511250423310001200021000000309073910239394DHA94UP95ENVELOPPE_NUE_4UF",
+      "raw": "0103760423190005112504233100012000210000003090739102393DHA.4UP.5ENVELOPPE_NUE_4UF",
       "parsed": [
         {
           "ai": "01",
           "name": "GTIN",
           "value": "03760423190005"
-        },
-        {
-          "ai": "11",
-          "name": "ExpirationDate",
-          "value": "250423"
-        },
-        {
-          "ai": "3100",
-          "name": "Weight",
-          "value": "012000"
-        },
-        {
-          "ai": "21",
-          "name": "SerialNumber",
-          "value": "00000030"
-        },
-        {
-          "ai": "90",
-          "name": "InternalInformation",
-          "value": "7391023"
-        },
-        {
-          "ai": "93",
-          "name": "CompanyInfo",
-          "value": "DHA"
-        },
-        {
-          "ai": "94",
-          "name": "CompanyInfo",
-          "value": "UP"
-        },
-        {
-          "ai": "95",
-          "name": "CompanyInfo",
-          "value": "ENVELOPPE_NUE_4UF"
         }
       ]
     }
@@ -144,6 +106,18 @@ curl https://gs1-decoder-api.rorworld.eu/health
 docker build -t gs1-decoder-api .
 docker run -d -p 8000:8000 gs1-decoder-api
 ```
+
+---
+
+## 📚 Ressources
+
+Le dossier `resources/` contient toutes les informations nécessaires concernant les Application Identifiers (AI) de GS1, incluant :
+- La liste complète des AI disponibles
+- La documentation officielle des formats
+- Les spécifications de longueur fixe et variable
+- Les règles de formatage et d'interprétation
+
+Ces ressources seront utilisées pour implémenter le support complet de tous les AI GS1 existants, l'une des améliorations futures prioritaires.
 
 ---
 
