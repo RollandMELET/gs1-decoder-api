@@ -1,6 +1,7 @@
 """
 Module de parsing GS1 amélioré
 Utilise les données complètes des AI depuis le fichier JSON
+Version 1.1.0 avec support étendu des AI
 """
 
 import os
@@ -37,7 +38,7 @@ AI_TABLE = load_ai_table()
 def normalize_gs1_data(data):
     """
     Normalise les données GS1 en remplaçant les séparateurs
-    par des symboles standards.
+    par des symboles standards et en nettoyant les préfixes spécifiques.
     
     Args:
         data (str): Les données GS1 brutes
@@ -45,31 +46,78 @@ def normalize_gs1_data(data):
     Returns:
         str: Les données normalisées
     """
-    # Remplacer les séparateurs connus par le caractère GS standard
-    separators = ['.', '|', '\\']
+    # Nettoyer les préfixes de format connus
+    prefix_patterns = [
+        r"^\]d2",     # Format ]d2 (DataMatrix)
+        r"^\]Q\d",    # Format ]Qn (comme ]Q1)
+        r"^\]C\d",    # Format ]Cn (comme ]C1)
+    ]
+    
     normalized = data
-    for sep in separators:
-        normalized = normalized.replace(sep, '\x1d')
+    for pattern in prefix_patterns:
+        match = re.match(pattern, normalized)
+        if match:
+            normalized = normalized[match.end():]
+            break
+    
+    # Dictionnaire des séparateurs connus et leur remplacement
+    separators = {
+        # ASCII GS (Group Separator)
+        '\x1d': '\x1d',
+        
+        # Séparateurs courants dans différents systèmes
+        '<GS>': '\x1d',
+        '<gs>': '\x1d',
+        '.': '\x1d',
+        '|': '\x1d',
+        '\\': '\x1d',
+        '^': '\x1d',
+        '~': '\x1d',
+        
+        # Certains décodeurs utilisent ces formats
+        '[FNC1]': '\x1d',
+        '(FNC1)': '\x1d',
+        '{FNC1}': '\x1d',
+        'FNC': '\x1d',
+        'fnc': '\x1d'
+    }
+    
+    # Remplacer tous les séparateurs connus
+    for sep, replacement in separators.items():
+        normalized = normalized.replace(sep, replacement)
     
     return normalized
 
 def format_date(value):
     """
     Formate une date GS1 (YYMMDD) en format lisible.
+    Version améliorée avec validation.
     
     Args:
         value (str): La date au format YYMMDD
         
     Returns:
-        str: Date formatée (YY-MM-DD)
+        str: Date formatée (YYYY-MM-DD)
     """
-    if len(value) == 6 and value.isdigit():
-        return f"{value[0:2]}-{value[2:4]}-{value[4:6]}"
-    return value
+    if not value or len(value) != 6 or not value.isdigit():
+        return value
+    
+    # Extraire les composants de la date
+    year = value[0:2]
+    month = value[2:4]
+    day = value[4:6]
+    
+    # Valider les composants (validation basique)
+    if not (1 <= int(month) <= 12 and 1 <= int(day) <= 31):
+        return value  # Date non valide, retourner la valeur d'origine
+    
+    # Formatter la date
+    return f"20{year}-{month}-{day}" if int(year) < 50 else f"19{year}-{month}-{day}"
 
 def format_decimal_value(value, decimal_position):
     """
     Formate une valeur numérique avec point décimal.
+    Version améliorée avec gestion des cas limite.
     
     Args:
         value (str): La valeur numérique
@@ -78,7 +126,7 @@ def format_decimal_value(value, decimal_position):
     Returns:
         str: Valeur formatée avec un point décimal
     """
-    if not value.isdigit():
+    if not value or not value.isdigit():
         return value
     
     # Si la position décimale est 0, retourner tel quel
@@ -91,12 +139,16 @@ def format_decimal_value(value, decimal_position):
     
     # Insérer le point décimal
     formatted = value[:-decimal_position] + '.' + value[-decimal_position:] if decimal_position > 0 else value
+    
+    # Supprimer les zéros en fin de nombre et le point si c'est un entier
+    formatted = formatted.rstrip('0').rstrip('.') if '.' in formatted else formatted
+    
     return formatted
 
 def parse_gs1(data, verbose=False):
     """
     Parse un code GS1 et extrait les identifiants d'application.
-    Version améliorée qui utilise la table complète des AI.
+    Version améliorée qui utilise la table complète des AI et gère mieux les formats spéciaux.
     
     Args:
         data (str): Le code GS1 brut
@@ -130,6 +182,10 @@ def parse_gs1(data, verbose=False):
     while i < len(data) and iterations < max_iterations:
         iterations += 1
         
+        # Si on est à la fin de la chaîne, sortir
+        if i >= len(data):
+            break
+            
         # Chercher l'AI le plus long possible
         ai = None
         ai_length = 0
@@ -140,6 +196,16 @@ def parse_gs1(data, verbose=False):
             if candidate in AI_TABLE:
                 ai = candidate
                 ai_length = 4
+        
+        # Gestion spéciale des AIs avec position décimale (310n-319n)
+        if not ai and i + 4 <= len(data):
+            prefix = data[i:i+3]
+            digit = data[i+3:i+4]
+            if prefix.startswith(('31', '32', '33', '34', '35', '36')) and digit.isdigit():
+                ai_template = prefix + "y"
+                if ai_template in AI_TABLE or prefix in AI_TABLE:
+                    ai = prefix + digit
+                    ai_length = 4
         
         # Puis les AIs de 3 chiffres
         if not ai and i + 3 <= len(data):
@@ -155,27 +221,22 @@ def parse_gs1(data, verbose=False):
                 ai = candidate
                 ai_length = 2
         
-        # Gestion spéciale des AIs avec position décimale (310n-319n)
-        if not ai and i + 4 <= len(data):
-            prefix = data[i:i+3]
-            digit = data[i+3:i+4]
-            if prefix.startswith('31') and digit.isdigit():
-                ai_template = prefix + "y"
-                if ai_template in AI_TABLE:
-                    ai = prefix + digit
-                    ai_length = 4
-        
         # Si aucun AI n'est trouvé, on avance d'un caractère
         if not ai:
             i += 1
             continue
         
         # Extraire les informations sur l'AI
-        ai_info = AI_TABLE[ai]
+        ai_info = AI_TABLE.get(ai, AI_TABLE.get(ai[:3] + "y", {}))
         ai_name = ai_info.get("name", "Unknown")
         ai_length_max = ai_info.get("length", 0)
         is_variable = not ai_info.get("fixed_length", True)
         decimal_position = ai_info.get("decimal_position", None)
+        
+        # Déterminer la position décimale pour les AIs de type 3XXy
+        if ai.startswith('3') and len(ai) == 4 and decimal_position is None:
+            # Le dernier chiffre de l'AI indique la position décimale
+            decimal_position = int(ai[3])
         
         # Avancer au-delà de l'AI
         i += ai_length
@@ -197,17 +258,73 @@ def parse_gs1(data, verbose=False):
             i += value_length
         
         # Formater la valeur selon le type d'AI
-        if ai.startswith('11') or ai.startswith('13') or ai.startswith('15') or ai.startswith('17'):
+        if ai.startswith(('11', '12', '13', '15', '16', '17')):
             # Dates
             value = format_date(value)
         elif decimal_position is not None:
             # Valeurs décimales
             value = format_decimal_value(value, decimal_position)
         
+        # Vérifier la validité pour certains types d'AI
+        is_valid = True
+        if ai == "01" and len(value) == 14:  # GTIN-14
+            # Vérifier le chiffre de contrôle
+            is_valid = is_valid_gtin(value)
+        
         # Enregistrer le résultat
         if verbose:
-            parsed.append({"ai": ai, "name": ai_name, "value": value})
+            parsed.append({"ai": ai, "name": ai_name, "value": value, "valid": is_valid})
         else:
             simple_parsed[ai_name] = value
     
     return parsed if verbose else simple_parsed
+
+def is_valid_gtin(gtin):
+    """
+    Vérifie si un GTIN est valide en calculant son chiffre de contrôle.
+    
+    Args:
+        gtin (str): Le GTIN à vérifier
+        
+    Returns:
+        bool: True si le GTIN est valide
+    """
+    if not gtin or not gtin.isdigit():
+        return False
+    
+    # Longueurs valides pour un GTIN
+    if len(gtin) not in (8, 12, 13, 14):
+        return False
+    
+    # Adaptation de l'algorithme pour les différentes longueurs
+    # Pour un GTIN-8, on remplit avec des zéros à gauche
+    # Pour un GTIN-12, on remplit avec des zéros à gauche
+    # Pour un GTIN-13 et GTIN-14, on utilise tel quel
+    
+    # Extraire le chiffre de contrôle (dernier chiffre)
+    check_digit = int(gtin[-1])
+    
+    # Séquence de chiffres sans le chiffre de contrôle
+    digits = [int(d) for d in gtin[:-1]]
+    
+    # Calcul pour GTIN-8
+    if len(gtin) == 8:
+        weighted_sum = 3 * (digits[0] + digits[2] + digits[4] + digits[6]) + (digits[1] + digits[3] + digits[5])
+        
+    # Calcul pour GTIN-12
+    elif len(gtin) == 12:
+        weighted_sum = 3 * (digits[1] + digits[3] + digits[5] + digits[7] + digits[9]) + (digits[0] + digits[2] + digits[4] + digits[6] + digits[8] + digits[10])
+        
+    # Calcul pour GTIN-13
+    elif len(gtin) == 13:
+        weighted_sum = 3 * (digits[1] + digits[3] + digits[5] + digits[7] + digits[9] + digits[11]) + (digits[0] + digits[2] + digits[4] + digits[6] + digits[8] + digits[10])
+        
+    # Calcul pour GTIN-14
+    else:
+        weighted_sum = 3 * (digits[1] + digits[3] + digits[5] + digits[7] + digits[9] + digits[11]) + (digits[0] + digits[2] + digits[4] + digits[6] + digits[8] + digits[10] + digits[12])
+    
+    # Calculer le chiffre de contrôle
+    calculated = (10 - (weighted_sum % 10)) % 10
+    
+    # Vérifier si le chiffre calculé correspond au chiffre de contrôle
+    return calculated == check_digit

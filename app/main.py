@@ -1,14 +1,24 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Form
-from app.gs1_parser_old import parse_gs1
-from app.models import DecodeResponse, ErrorResponse, HealthResponse
-from app.barcode_detector_old import DecoderType, get_decoder_info
+from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Depends, Response
+from fastapi.responses import StreamingResponse
+from app.gs1_parser import parse_gs1
+from app.models import (
+    DecodeResponse, ErrorResponse, HealthResponse, 
+    GenerateRequest, GenerateResponse, BarcodeFormat, ImageFormat
+)
+from app.barcode_detector import DecoderType, get_decoder_info
+from app.barcode_generator import generate_barcode, BarcodeFormat as GenBarcodeFormat, ImageFormat as GenImageFormat
 import shutil
 import subprocess
 from pylibdmtx.pylibdmtx import decode as dmtx_decode
 from PIL import Image
 import os
+import io
 
-app = FastAPI()
+app = FastAPI(
+    title="GS1 Decoder API",
+    description="API pour décoder et générer des codes-barres au format GS1",
+    version="1.1.0"
+)
 
 @app.get("/health", response_model=HealthResponse)
 async def health():
@@ -24,15 +34,21 @@ async def health():
             "zxing": _check_zxing_available(),
             "pylibdmtx": _check_pylibdmtx_available()
         },
-        "supported_codes": ["DataMatrix", "QR Code", "GS1-128"],
-        "api_version": "1.0.0"
+        "supported_codes": ["DataMatrix", "QR Code", "GS1-128", "GS1 DataMatrix", "GS1 QR Code"],
+        "api_version": "1.1.0",
+        "features": {
+            "decode": True,
+            "generate": True
+        }
     }
     return {"status": "OK", "capabilities": capabilities}
 
 @app.post(
     "/decode/",
     response_model=DecodeResponse,
-    responses={422: {"model": ErrorResponse}}
+    responses={422: {"model": ErrorResponse}},
+    summary="Décode des codes-barres à partir d'une image",
+    description="Analyse une image et détecte/décode les codes-barres présents, supportant différents formats GS1"
 )
 async def decode_image(
     file: UploadFile = File(...),
@@ -124,6 +140,75 @@ async def decode_image(
         barcodes.append(barcode_data)
 
     return {"success": True, "barcodes": barcodes}
+
+@app.post(
+    "/generate/",
+    responses={
+        200: {"content": {"image/png": {}, "image/jpeg": {}, "image/svg+xml": {}}},
+        422: {"model": ErrorResponse}
+    },
+    summary="Génère un code-barres GS1",
+    description="Crée une image de code-barres à partir des données GS1 fournies"
+)
+async def generate_barcode_image(request: GenerateRequest):
+    """
+    Génère un code-barres à partir des données fournies.
+    
+    Args:
+        request: Paramètres de génération du code-barres
+        
+    Returns:
+        StreamingResponse: Image du code-barres
+    """
+    try:
+        # Mapper les formats d'entrée aux formats internes
+        barcode_format_map = {
+            BarcodeFormat.DATAMATRIX: GenBarcodeFormat.DATAMATRIX,
+            BarcodeFormat.QRCODE: GenBarcodeFormat.QRCODE,
+            BarcodeFormat.CODE128: GenBarcodeFormat.CODE128,
+            BarcodeFormat.GS1_128: GenBarcodeFormat.GS1_128,
+            BarcodeFormat.GS1_DATAMATRIX: GenBarcodeFormat.GS1_DATAMATRIX,
+            BarcodeFormat.GS1_QRCODE: GenBarcodeFormat.GS1_QRCODE,
+        }
+        
+        image_format_map = {
+            ImageFormat.PNG: GenImageFormat.PNG,
+            ImageFormat.JPEG: GenImageFormat.JPEG,
+            ImageFormat.SVG: GenImageFormat.SVG,
+        }
+        
+        # Générer le code-barres
+        barcode_image = generate_barcode(
+            data=request.data,
+            barcode_format=barcode_format_map[request.format],
+            image_format=image_format_map[request.image_format],
+            width=request.width,
+            height=request.height
+        )
+        
+        # Déterminer le type MIME
+        mime_types = {
+            ImageFormat.PNG: "image/png",
+            ImageFormat.JPEG: "image/jpeg",
+            ImageFormat.SVG: "image/svg+xml",
+        }
+        media_type = mime_types[request.image_format]
+        
+        # Retourner l'image
+        return StreamingResponse(
+            io.BytesIO(barcode_image),
+            media_type=media_type,
+            headers={
+                "Content-Disposition": f"inline; filename=barcode.{request.image_format.value}"
+            }
+        )
+        
+    except ValueError as e:
+        raise HTTPException(status_code=422, detail=str(e))
+    except ImportError as e:
+        raise HTTPException(status_code=501, detail=f"Fonctionnalité non disponible: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Erreur lors de la génération: {str(e)}")
 
 def _check_zxing_available():
     """

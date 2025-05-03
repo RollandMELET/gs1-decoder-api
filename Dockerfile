@@ -6,7 +6,9 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       default-jre-headless \
       libdmtx-dev \
-      wget && \
+      wget \
+      ghostscript \
+      libmagickwand-dev && \
     rm -rf /var/lib/apt/lists/*
 
 # 2) Récupération du JAR ZXing JavaSE
@@ -17,10 +19,9 @@ RUN mkdir -p /zxing && \
 
 WORKDIR /app
 
-# 3) Dépendances Python (inclut désormais pillow et pylibdmtx)
+# 3) Dépendances Python 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install --no-cache-dir pillow pylibdmtx
+RUN pip install --no-cache-dir -r requirements.txt
 
 # 4) Code source
 COPY . /app

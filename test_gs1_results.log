@@ -1,0 +1,172 @@
+=== Tests du module gs1_parser ===
+
+=== Test de normalize_gs1_data ===
+Input: ']d201030123456789.103456'
+Output: '01030123456789\x1d103456'
+Expected: '01030123456789\x1d103456'
+Test OK
+
+Input: '01030123456789|103456'
+Output: '01030123456789\x1d103456'
+Expected: '01030123456789\x1d103456'
+Test OK
+
+Input: '01030123456789<GS>103456'
+Output: '01030123456789\x1d103456'
+Expected: '01030123456789\x1d103456'
+Test OK
+
+Input: '01030123456789[FNC1]103456'
+Output: '01030123456789\x1d103456'
+Expected: '01030123456789\x1d103456'
+Test OK
+
+Input: '01030123456789~103456'
+Output: '01030123456789\x1d103456'
+Expected: '01030123456789\x1d103456'
+Test OK
+
+
+=== Test de format_date ===
+Input: 230503
+Output: 2023-05-03
+Expected: 2023-05-03
+Test OK
+
+Input: 990101
+Output: 1999-01-01
+Expected: 1999-01-01
+Test OK
+
+Input: 000229
+Output: 2000-02-29
+Expected: 2000-02-29
+Test OK
+
+Input: 230532
+Output: 230532
+Expected: 230532
+Test OK
+
+Input: 231345
+Output: 231345
+Expected: 231345
+Test OK
+
+Input: abcdef
+Output: abcdef
+Expected: abcdef
+Test OK
+
+
+=== Test de format_decimal_value ===
+Input: 12345, pos: 2
+Output: 123.45
+Expected: 123.45
+Test OK
+
+Input: 5, pos: 2
+Output: 0.05
+Expected: 0.05
+Test OK
+
+Input: 50, pos: 1
+Output: 5
+Expected: 5
+Test OK
+
+Input: 5000, pos: 3
+Output: 5
+Expected: 5
+Test OK
+
+Input: 123456, pos: 0
+Output: 123456
+Expected: 123456
+Test OK
+
+Input: abc, pos: 2
+Output: abc
+Expected: abc
+Test OK
+
+
+=== Test de is_valid_gtin ===
+GTIN: 01234565
+Valid: True
+Expected: True
+Test OK
+
+GTIN: 590123412345
+Valid: False
+Expected: True
+Test ÉCHEC
+
+GTIN: 5901234123457
+Valid: True
+Expected: True
+Test OK
+
+GTIN: 00012345678905
+Valid: True
+Expected: True
+Test OK
+
+GTIN: 12345678901234
+Valid: False
+Expected: False
+Test OK
+
+GTIN: 1234567
+Valid: False
+Expected: False
+Test OK
+
+GTIN: abcdefghijklmn
+Valid: False
+Expected: False
+Test OK
+
+
+=== Test de parse_gs1 ===
+Input: '01030123456789\x1d10ABC123\x1d21Serial123'
+Verbose: False
+Result: {'GTIN': '030123456789\x1d1', 'SERIAL': 'Serial123'}
+Test ÉCHEC
+
+Input: '01030123456789\x1d10ABC123\x1d21Serial123'
+Verbose: True
+Result: [{'ai': '01', 'name': 'GTIN', 'value': '030123456789\x1d1', 'valid': False}, {'ai': '21', 'name': 'SERIAL', 'value': 'Serial123', 'valid': True}]
+Test ÉCHEC
+
+Input: '01003024688761231035PK132100abcd'
+Verbose: False
+Result: {'GTIN': '00302468876123', 'BATCH': '35PK132100abcd'}
+Test ÉCHEC
+
+Input: ']d2010030246887612310P3Q0VF21ABCD'
+Verbose: False
+Result: {'GTIN': '00302468876123', 'BATCH': 'P3Q0VF21ABCD'}
+Test ÉCHEC
+
+Input: '310012345'
+Verbose: False
+Result: {'NET_WEIGHT_KG': '12345'}
+Test OK
+
+Input: '31012345'
+Verbose: False
+Result: {'NET_WEIGHT_KG': '234.5'}
+Test OK
+
+Input: '3102987654'
+Verbose: False
+Result: {'NET_WEIGHT_KG': '9876.54'}
+Test OK
+
+Input: '17230503'
+Verbose: False
+Result: {'EXPIRY': '2023-05-03'}
+Test OK
+
+=== Fin des tests ===

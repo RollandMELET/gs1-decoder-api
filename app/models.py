@@ -1,5 +1,6 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import List, Union, Dict, Any, Optional
+from enum import Enum
 
 class DecoderInfo(BaseModel):
     """Informations sur le décodeur utilisé et le format détecté."""
@@ -34,3 +35,35 @@ class HealthResponse(BaseModel):
     """Réponse de l'API pour l'endpoint de santé."""
     status: str
     capabilities: Dict[str, Any]
+
+# Modèles pour la génération de codes-barres
+
+class BarcodeFormat(str, Enum):
+    """Formats de codes-barres pris en charge pour la génération."""
+    DATAMATRIX = "datamatrix"
+    QRCODE = "qrcode"
+    CODE128 = "code128"
+    GS1_128 = "gs1-128"
+    GS1_DATAMATRIX = "gs1-datamatrix"
+    GS1_QRCODE = "gs1-qrcode"
+
+class ImageFormat(str, Enum):
+    """Formats d'image pris en charge pour l'export."""
+    PNG = "png"
+    JPEG = "jpeg"
+    SVG = "svg"
+
+class GenerateRequest(BaseModel):
+    """Paramètres pour la génération d'un code-barres."""
+    data: str = Field(..., description="Données à encoder (ex: 01034531200000111719112510ABCD1234)")
+    format: BarcodeFormat = Field(default=BarcodeFormat.GS1_DATAMATRIX, description="Format du code-barres")
+    image_format: ImageFormat = Field(default=ImageFormat.PNG, description="Format de l'image générée")
+    width: int = Field(default=300, ge=50, le=1000, description="Largeur de l'image en pixels")
+    height: int = Field(default=300, ge=50, le=1000, description="Hauteur de l'image en pixels")
+    
+class GenerateResponse(BaseModel):
+    """Réponse pour la génération réussie d'un code-barres."""
+    success: bool
+    format: BarcodeFormat
+    image_url: str
+    data: str
