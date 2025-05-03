@@ -1,7 +1,7 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form
-from app.gs1_parser import parse_gs1
+from app.gs1_parser_old import parse_gs1
 from app.models import DecodeResponse, ErrorResponse, HealthResponse
-from app.barcode_detector import DecoderType, get_decoder_info
+from app.barcode_detector_old import DecoderType, get_decoder_info
 import shutil
 import subprocess
 from pylibdmtx.pylibdmtx import decode as dmtx_decode

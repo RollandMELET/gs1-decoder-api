@@ -16,7 +16,7 @@ from pylibdmtx.pylibdmtx import decode as dmtx_decode
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Importer les modules à tester
-from app.barcode_detector import (
+from app.barcode_detector_old import (
     detect_gs1_format, get_decoder_info, DecoderType, BarcodeFormat
 )
 
