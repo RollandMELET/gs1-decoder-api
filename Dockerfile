@@ -1,4 +1,4 @@
-# Dockerfile pour JPype
+# Dockerfile pour JPype (syntaxe commentaires corrigée)
 FROM python:3.10-slim
 
 ARG ZXING_VERSION=3.4.1
@@ -7,11 +7,17 @@ ARG ZXING_VERSION=3.4.1
 # 1) Prérequis système (Java est essentiel pour JPype)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      default-jre-headless \ # Important pour JPype/ZXing Java
+      # Java Runtime Environment (Important pour JPype/ZXing Java)
+      default-jre-headless \
+      # Dépendance C pour pylibdmtx
       libdmtx-dev \
+      # Outil pour télécharger les JARs
       wget \
+      # Conservé car présent initialement
       ghostscript \
+      # Conservé car présent initialement
       libmagickwand-dev && \
+    # Nettoyage pour réduire la taille de l'image
     rm -rf /var/lib/apt/lists/*
 
 # 2) Récupération des JARs ZXing (Core et JavaSE)
