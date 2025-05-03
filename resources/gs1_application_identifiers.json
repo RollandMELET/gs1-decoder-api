@@ -1,0 +1,370 @@
+{
+  "00": {
+    "name": "SSCC",
+    "description": "Serial Shipping Container Code (SSCC-18)",
+    "format": "numeric",
+    "length": 18,
+    "fixed_length": true
+  },
+  "01": {
+    "name": "GTIN",
+    "description": "Global Trade Item Number",
+    "format": "numeric",
+    "length": 14,
+    "fixed_length": true
+  },
+  "02": {
+    "name": "CONTENT",
+    "description": "Number of containers",
+    "format": "numeric",
+    "length": 14,
+    "fixed_length": true
+  },
+  "10": {
+    "name": "BATCH",
+    "description": "Batch/Lot Number",
+    "format": "alphanumeric",
+    "length": 20,
+    "fixed_length": false
+  },
+  "11": {
+    "name": "PROD_DATE",
+    "description": "Production Date (YYMMDD)",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": true
+  },
+  "13": {
+    "name": "PACK_DATE",
+    "description": "Packaging Date (YYMMDD)",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": true
+  },
+  "15": {
+    "name": "BEST_BY",
+    "description": "Sell by Date (Quality Control) (YYMMDD)",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": true
+  },
+  "17": {
+    "name": "EXPIRY",
+    "description": "Expiration Date (YYMMDD)",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": true
+  },
+  "20": {
+    "name": "VARIANT",
+    "description": "Product Variant",
+    "format": "numeric",
+    "length": 2,
+    "fixed_length": true
+  },
+  "21": {
+    "name": "SERIAL",
+    "description": "Serial Number",
+    "format": "alphanumeric",
+    "length": 20,
+    "fixed_length": false
+  },
+  "22": {
+    "name": "HIBCC",
+    "description": "HIBCC Quantity, Date, Batch and Link",
+    "format": "alphanumeric",
+    "length": 29,
+    "fixed_length": false
+  },
+  "23x": {
+    "name": "LOT",
+    "description": "Lot Number",
+    "format": "alphanumeric",
+    "length": 19,
+    "fixed_length": false
+  },
+  "240": {
+    "name": "ADDITIONAL_ID",
+    "description": "Additional Product Identification",
+    "format": "alphanumeric",
+    "length": 30,
+    "fixed_length": false
+  },
+  "241": {
+    "name": "CUST_PART_NO",
+    "description": "Customer Part Number",
+    "format": "alphanumeric",
+    "length": 30,
+    "fixed_length": false
+  },
+  "242": {
+    "name": "MTO_VARIANT",
+    "description": "Made-to-Order variation number",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": false
+  },
+  "243": {
+    "name": "PCN",
+    "description": "Packaging Component Number",
+    "format": "alphanumeric",
+    "length": 20,
+    "fixed_length": false
+  },
+  "250": {
+    "name": "SECONDARY_SERIAL",
+    "description": "Secondary Serial Number",
+    "format": "alphanumeric",
+    "length": 30,
+    "fixed_length": false
+  },
+  "251": {
+    "name": "REF_TO_SOURCE",
+    "description": "Reference to source entity",
+    "format": "alphanumeric",
+    "length": 30,
+    "fixed_length": false
+  },
+  "253": {
+    "name": "GDTI",
+    "description": "Global Document Type Identifier",
+    "format": "alphanumeric",
+    "length": 30,
+    "fixed_length": false
+  },
+  "254": {
+    "name": "GLN_EXTENSION",
+    "description": "GLN extension component",
+    "format": "alphanumeric",
+    "length": 20,
+    "fixed_length": false
+  },
+  "255": {
+    "name": "GCN",
+    "description": "Global Coupon Number",
+    "format": "numeric",
+    "length": 25,
+    "fixed_length": false
+  },
+  "30": {
+    "name": "VAR_COUNT",
+    "description": "Quantity Each",
+    "format": "numeric",
+    "length": 8,
+    "fixed_length": false
+  },
+  "310y": {
+    "name": "NET_WEIGHT_KG",
+    "description": "Product Net Weight in kg",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": true,
+    "has_decimal": true
+  },
+  "311y": {
+    "name": "LENGTH_M",
+    "description": "Product Length/1st Dimension, in meters",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": true,
+    "has_decimal": true
+  },
+  "312y": {
+    "name": "WIDTH_M",
+    "description": "Product Width/Diameter/2nd Dimension, in meters",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": true,
+    "has_decimal": true
+  },
+  "313y": {
+    "name": "HEIGHT_M",
+    "description": "Product Depth/Thickness/3rd Dimension, in meters",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": true,
+    "has_decimal": true
+  },
+  "314y": {
+    "name": "AREA_M2",
+    "description": "Product Area, in square meters",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": true,
+    "has_decimal": true
+  },
+  "315y": {
+    "name": "VOLUME_L",
+    "description": "Product Volume, in liters",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": true,
+    "has_decimal": true
+  },
+  "316y": {
+    "name": "VOLUME_M3",
+    "description": "Product Volume, in cubic meters",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": true,
+    "has_decimal": true
+  },
+  "320y": {
+    "name": "NET_WEIGHT_LB",
+    "description": "Product Net Weight, in pounds",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": true,
+    "has_decimal": true
+  },
+  "90": {
+    "name": "INTERNAL",
+    "description": "Information mutually agreed between trading partners",
+    "format": "alphanumeric",
+    "length": 30,
+    "fixed_length": false
+  },
+  "91": {
+    "name": "INTERNAL1",
+    "description": "Company Internal Information 1",
+    "format": "alphanumeric",
+    "length": 30,
+    "fixed_length": false
+  },
+  "92": {
+    "name": "INTERNAL2",
+    "description": "Company Internal Information 2",
+    "format": "alphanumeric",
+    "length": 30,
+    "fixed_length": false
+  },
+  "93": {
+    "name": "INTERNAL3",
+    "description": "Company Internal Information 3",
+    "format": "alphanumeric",
+    "length": 30,
+    "fixed_length": false
+  },
+  "94": {
+    "name": "INTERNAL4",
+    "description": "Company Internal Information 4",
+    "format": "alphanumeric",
+    "length": 30,
+    "fixed_length": false
+  },
+  "95": {
+    "name": "INTERNAL5",
+    "description": "Company Internal Information 5",
+    "format": "alphanumeric",
+    "length": 30,
+    "fixed_length": false
+  },
+  "96": {
+    "name": "INTERNAL6",
+    "description": "Company Internal Information 6",
+    "format": "alphanumeric",
+    "length": 30,
+    "fixed_length": false
+  },
+  "97": {
+    "name": "INTERNAL7",
+    "description": "Company Internal Information 7",
+    "format": "alphanumeric",
+    "length": 30,
+    "fixed_length": false
+  },
+  "98": {
+    "name": "INTERNAL8",
+    "description": "Company Internal Information 8",
+    "format": "alphanumeric",
+    "length": 30,
+    "fixed_length": false
+  },
+  "99": {
+    "name": "INTERNAL9",
+    "description": "Company Internal Information 9",
+    "format": "alphanumeric",
+    "length": 30,
+    "fixed_length": false
+  },
+  "3100": {
+    "name": "NET_WEIGHT_KG",
+    "description": "Product Net Weight in kg, no decimal point",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": true,
+    "decimal_position": 0
+  },
+  "3101": {
+    "name": "NET_WEIGHT_KG",
+    "description": "Product Net Weight in kg, 1 decimal place",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": true,
+    "decimal_position": 1
+  },
+  "3102": {
+    "name": "NET_WEIGHT_KG",
+    "description": "Product Net Weight in kg, 2 decimal places",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": true,
+    "decimal_position": 2
+  },
+  "3103": {
+    "name": "NET_WEIGHT_KG",
+    "description": "Product Net Weight in kg, 3 decimal places",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": true,
+    "decimal_position": 3
+  },
+  "3104": {
+    "name": "NET_WEIGHT_KG",
+    "description": "Product Net Weight in kg, 4 decimal places",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": true,
+    "decimal_position": 4
+  },
+  "3105": {
+    "name": "NET_WEIGHT_KG",
+    "description": "Product Net Weight in kg, 5 decimal places",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": true,
+    "decimal_position": 5
+  },
+  "3106": {
+    "name": "NET_WEIGHT_KG",
+    "description": "Product Net Weight in kg, 6 decimal places",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": true,
+    "decimal_position": 6
+  },
+  "3107": {
+    "name": "NET_WEIGHT_KG",
+    "description": "Product Net Weight in kg, 7 decimal places",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": true,
+    "decimal_position": 7
+  },
+  "3108": {
+    "name": "NET_WEIGHT_KG",
+    "description": "Product Net Weight in kg, 8 decimal places",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": true,
+    "decimal_position": 8
+  },
+  "3109": {
+    "name": "NET_WEIGHT_KG",
+    "description": "Product Net Weight in kg, 9 decimal places",
+    "format": "numeric",
+    "length": 6,
+    "fixed_length": true,
+    "decimal_position": 9
+  }
+}
