@@ -11,40 +11,47 @@ from app.models import (
 from app.barcode_detector import DecoderType, get_decoder_info
 from app.barcode_generator import generate_barcode, BarcodeFormat as GenBarcodeFormat, ImageFormat as GenImageFormat
 import shutil
-# --- Suppression de subprocess car plus utilisé pour ZXing ---
-# import subprocess
+# Suppression de subprocess
 from pylibdmtx.pylibdmtx import decode as dmtx_decode
 from PIL import Image
 import os
 import io
-# --- AJOUT: Import de la bibliothèque zxing-python ---
-import zxing
+# --- AJOUT: Import de la bibliothèque pyzxing ---
+from pyzxing import BarCodeReader
 
 app = FastAPI(
     title="GS1 Decoder API",
     description="API pour décoder et générer des codes-barres au format GS1",
-    version="1.1.4" # Incrémenté pour l'étape zxing-python
+    version="1.1.5" # Incrémenté pour l'étape pyzxing
 )
 
-# --- AJOUT: Initialiser le lecteur zxing-python ---
-# Spécifier le chemin vers les JARs que nous avons téléchargés
+# --- AJOUT: Initialiser le lecteur pyzxing ---
 try:
-    zxing_reader = zxing.BarCodeReader(
-        classpath="/zxing/core.jar:/zxing/javase.jar:/zxing/jcommander.jar"
-    )
-    ZXING_PYTHON_AVAILABLE = True
+    # pyzxing trouve les JARs automatiquement s'ils sont dans des chemins standards
+    # ou on peut spécifier le répertoire ZXING_LIBRARY mais essayons sans d'abord
+    # S'assurer que JAVA_HOME est peut-être nécessaire dans l'env Docker si non standard
+    zxing_reader = BarCodeReader()
+    PYZXING_AVAILABLE = True
 except Exception as e:
-    print(f"Erreur initialisation zxing-python: {e}. ZXing ne sera pas disponible.")
-    zxing_reader = None
-    ZXING_PYTHON_AVAILABLE = False
+    # La détection de pyzxing est plus complexe, on pourrait juste supposer True
+    # si l'import a réussi et que Java est là.
+    print(f"Avertissement initialisation pyzxing (peut être normal): {e}")
+    # On suppose qu'il est dispo si l'import a marché et java existe
+    if shutil.which("java"):
+         PYZXING_AVAILABLE = True
+         zxing_reader = BarCodeReader() # Recréer au cas où
+    else:
+         print("Java non trouvé, pyzxing ne sera pas disponible.")
+         PYZXING_AVAILABLE = False
+         zxing_reader = None
 
 
 @app.get("/health", response_model=HealthResponse)
 async def health():
     capabilities = {
-        # --- MODIFIÉ: Vérifier zxing-python ---
+        # --- MODIFIÉ: Vérifier pyzxing ---
         "decoders": {
-            "zxing": ZXING_PYTHON_AVAILABLE, # Utiliser notre flag
+            "zxing": PYZXING_AVAILABLE, # Utiliser notre flag
             "pylibdmtx": _check_pylibdmtx_available()
         },
         "supported_codes": ["DataMatrix", "QR Code", "GS1-128", "GS1 DataMatrix", "GS1 QR Code"],
@@ -77,7 +84,7 @@ async def decode_image(
     if debug and log_file:
         try:
             logf = open(log_file, "w")
-            logf.write(f"--- New Request (Test zxing-python) ---\n")
+            logf.write(f"--- New Request (Test pyzxing) ---\n")
             logf.write(f"[DEBUG] Saved upload to {temp_file_path}\n")
         except Exception as e:
             print(f"Warning: Impossible d'ouvrir le fichier de log {log_file}: {e}")
@@ -85,42 +92,44 @@ async def decode_image(
 
     decoded = []
     decoder_used = DecoderType.NONE
-    zxing_error_msg = None # Pour stocker l'erreur éventuelle
+    zxing_error_msg = None
 
-    # 1) ZXing attempt (via zxing-python)
-    if ZXING_PYTHON_AVAILABLE and zxing_reader:
+    # 1) ZXing attempt (via pyzxing)
+    if PYZXING_AVAILABLE and zxing_reader:
         try:
-            if logf: logf.write(f"[DEBUG] Attempting decode with zxing-python...\n")
-            # --- MODIFICATION: Utilisation de zxing-python ---
-            barcode = zxing_reader.decode(temp_file_path, try_harder=True, possible_formats=["DATA_MATRIX"]) # Spécifier format peut aider
+            if logf: logf.write(f"[DEBUG] Attempting decode with pyzxing...\n")
+            # --- MODIFICATION: Utilisation de pyzxing ---
+            # pyzxing.decode retourne une liste de dictionnaires ou None
+            results = zxing_reader.decode(temp_file_path, try_harder=True, possible_formats="DATA_MATRIX")
 
-            if barcode:
-                # Extraire la donnée brute. Vérifier la structure de l'objet 'barcode'
-                # La doc suggère barcode.raw ou barcode.parsed
-                raw_data = barcode.raw # Essayons .raw d'abord
-                if raw_data:
-                    # zxing-python retourne des bytes, décoder en utf-8
-                    decoded = [raw_data.decode('utf-8')]
+            if results:
+                # Extraire les données brutes (bytes) de chaque résultat
+                raw_byte_list = [r.get('raw') for r in results if r.get('raw')]
+                if raw_byte_list:
+                    # Décoder les bytes en utf-8
+                    decoded = [b.decode('utf-8') for b in raw_byte_list]
                     decoder_used = DecoderType.ZXING # Marquer comme ZXing
-                    if logf: logf.write(f"[DEBUG] zxing-python success. Raw data extracted: {decoded}\n")
+                    if logf: logf.write(f"[DEBUG] pyzxing success. Raw data extracted: {decoded}\n")
                 else:
-                    if logf: logf.write(f"[DEBUG] zxing-python found barcode but no raw data field.\n")
+                    if logf: logf.write(f"[DEBUG] pyzxing found barcode(s) but no 'raw' field in results: {results}\n")
+                    decoded = [] # Pas de donnée brute extraite
             else:
-                if logf: logf.write(f"[DEBUG] zxing-python found no barcode.\n")
+                if logf: logf.write(f"[DEBUG] pyzxing found no barcode.\n")
+                decoded = []
 
         except Exception as e:
-            zxing_error_msg = f"zxing-python error: {e}"
+            zxing_error_msg = f"pyzxing error: {e}"
             if logf: logf.write(f"[ERROR] {zxing_error_msg}\n")
-            decoded = [] # Assurer que decoded est vide en cas d'erreur
+            decoded = []
 
     else:
-        if logf: logf.write("[DEBUG] Skipping zxing-python attempt: not available.\n")
-        zxing_error_msg = "zxing-python not available."
+        if logf: logf.write("[DEBUG] Skipping pyzxing attempt: not available.\n")
+        zxing_error_msg = "pyzxing not available."
 
-    # 2) Fallback to pylibdmtx if ZXing failed or found nothing
+    # 2) Fallback to pylibdmtx if pyzxing failed or found nothing
     if not decoded:
         if logf:
-            logf.write(f"[DEBUG] zxing-python found nothing or failed ({zxing_error_msg}). Trying pylibdmtx...\n")
+            logf.write(f"[DEBUG] pyzxing found nothing or failed ({zxing_error_msg}). Trying pylibdmtx...\n")
         if _check_pylibdmtx_available():
             try:
                 img = Image.open(temp_file_path)
@@ -137,14 +146,13 @@ async def decode_image(
         else:
             if logf: logf.write("[DEBUG] Skipping pylibdmtx attempt: not available.\n")
 
-
     # Finalize logs section
     if logf:
         logf.write(f"[DEBUG] Final decoder used: {decoder_used}\n")
         logf.write(f"[DEBUG] Final decoded data: {decoded}\n")
         if decoded and logf:
              for i, raw_data in enumerate(decoded):
-                 # --- On logge repr() pour voir si zxing-python inclut \x1d ---
+                 # --- Log repr() pour voir si pyzxing inclut \x1d ---
                  logf.write(f"[DEBUG] Raw data item {i} from final decoder (repr): {repr(raw_data)}\n")
         logf.close()
 
@@ -157,7 +165,7 @@ async def decode_image(
     if not decoded:
         detail_msg = "Aucun code-barres détecté dans l'image."
         if zxing_error_msg and decoder_used == DecoderType.NONE:
-             detail_msg += f" (ZXing error: {zxing_error_msg})"
+             detail_msg += f" (ZXing/pyzxing error: {zxing_error_msg})"
         elif decoder_used == DecoderType.NONE:
              detail_msg += " (pylibdmtx a aussi échoué ou n'a rien trouvé)."
         raise HTTPException(status_code=422, detail=detail_msg)
@@ -167,7 +175,12 @@ async def decode_image(
         try:
             # --- Toujours parser avec le gs1_parser original ---
             parsed_data = parse_gs1(raw, verbose=verbose)
+            # Utiliser le nom de décodeur correct dans l'info
+            decoder_name_for_info = "pyzxing" if decoder_used == DecoderType.ZXING else decoder_used.value
             decoder_info_dict = get_decoder_info(raw, decoder_used, verbose=verbose)
+            # Surcharger le nom si nécessaire
+            decoder_info_dict["decoder"] = decoder_name_for_info
+
             decoder_info_model = DecoderInfo(**decoder_info_dict)
             barcode_item = BarcodeItem(raw=raw, parsed=parsed_data, decoder_info=decoder_info_model)
             barcodes_response.append(barcode_item)
@@ -187,6 +200,7 @@ async def decode_image(
 # --- Endpoint /generate/ (inchangé) ---
 @app.post("/generate/", responses={ 200: {"content": {"image/png": {}, "image/jpeg": {}, "image/svg+xml": {}}}, 422: {"model": ErrorResponse}, 501: {"model": ErrorResponse}, 500: {"model": ErrorResponse} }, summary="Génère un code-barres GS1", description="Crée une image de code-barres à partir des données GS1 fournies")
 async def generate_barcode_image(request: GenerateRequest):
+    # ... (code de generate_barcode_image reste identique) ...
     try:
         barcode_format_map = { BarcodeFormat.DATAMATRIX: GenBarcodeFormat.DATAMATRIX, BarcodeFormat.QRCODE: GenBarcodeFormat.QRCODE, BarcodeFormat.CODE128: GenBarcodeFormat.CODE128, BarcodeFormat.GS1_128: GenBarcodeFormat.GS1_128, BarcodeFormat.GS1_DATAMATRIX: GenBarcodeFormat.GS1_DATAMATRIX, BarcodeFormat.GS1_QRCODE: GenBarcodeFormat.GS1_QRCODE, }
         image_format_map = { ImageFormat.PNG: GenImageFormat.PNG, ImageFormat.JPEG: GenImageFormat.JPEG, ImageFormat.SVG: GenImageFormat.SVG, }
@@ -205,10 +219,8 @@ async def generate_barcode_image(request: GenerateRequest):
 
 # --- Fonctions de vérification (MODIFIÉES) ---
 def _check_zxing_available():
-    # Vérifie si le wrapper Python a été initialisé et si Java est là
-    # On garde la vérification java au cas où le wrapper en aurait besoin
-    # mais la disponibilité principale est gérée par ZXING_PYTHON_AVAILABLE
-    return ZXING_PYTHON_AVAILABLE and shutil.which("java") is not None
+    # Utilise maintenant le flag PYZXING_AVAILABLE
+    return PYZXING_AVAILABLE
 
 def _check_pylibdmtx_available():
     try:

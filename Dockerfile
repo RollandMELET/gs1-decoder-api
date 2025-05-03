@@ -1,5 +1,4 @@
-# Dockerfile complet (seule la section 3 change)
-
+# Dockerfile (RESTE IDENTIQUE au précédent)
 FROM python:3.10-slim
 
 ARG ZXING_VERSION=3.4.1
@@ -24,10 +23,9 @@ RUN mkdir -p /zxing && \
 
 WORKDIR /app
 
-# 3) Dépendances Python (MODIFIÉ)
+# 3) Dépendances Python (MODIFIÉ via requirements.txt)
 COPY requirements.txt .
-# pip install installe maintenant aussi zxing-python
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt # Installera pyzxing maintenant
 
 # 4) Code source (inchangé)
 COPY . /app
