@@ -55,7 +55,15 @@ curl -X POST https://gs1-decoder-api.rorworld.eu/decode/ \
     {
       "raw": "0103760423190005112504233100012000210000003090739102393DHA.4UP.5ENVELOPPE_NUE_4UF",
       "parsed": {
-        "GTIN": "03760423190005"
+        "GTIN": "03760423190005",
+        "PROD_DATE": "25-04-23",
+        "NET_WEIGHT_KG": "12.000",
+        "SERIAL": "00000030",
+        "INTERNAL": "7391023"
+      },
+      "decoder_info": {
+        "decoder": "pylibdmtx",
+        "format": "GS1 DataMatrix"
       }
     }
   ]
@@ -81,8 +89,55 @@ curl -X POST https://gs1-decoder-api.rorworld.eu/decode/ \
           "ai": "01",
           "name": "GTIN",
           "value": "03760423190005"
+        },
+        {
+          "ai": "11",
+          "name": "PROD_DATE",
+          "value": "25-04-23"
+        },
+        {
+          "ai": "3100",
+          "name": "NET_WEIGHT_KG",
+          "value": "12.000"
+        },
+        {
+          "ai": "21",
+          "name": "SERIAL",
+          "value": "00000030"
+        },
+        {
+          "ai": "90",
+          "name": "INTERNAL",
+          "value": "7391023"
+        },
+        {
+          "ai": "93",
+          "name": "INTERNAL3",
+          "value": "DHA"
+        },
+        {
+          "ai": "94",
+          "name": "INTERNAL4",
+          "value": "UP"
+        },
+        {
+          "ai": "95",
+          "name": "INTERNAL5",
+          "value": "ENVELOPPE_NUE_4UF"
         }
-      ]
+      ],
+      "decoder_info": {
+        "decoder": "pylibdmtx",
+        "format": "GS1 DataMatrix",
+        "is_gs1": true,
+        "confidence": 0.9,
+        "characteristics": {
+          "length": 81,
+          "content_type": "alphanumeric",
+          "contains_special_chars": true,
+          "potential_ais": ["01", "11", "31", "00", "21", "90", "93", "94", "95"]
+        }
+      }
     }
   ]
 }
@@ -95,7 +150,17 @@ curl https://gs1-decoder-api.rorworld.eu/health
 
 **Résultat attendu**
 ```json
-{"status": "OK"}
+{
+  "status": "OK",
+  "capabilities": {
+    "decoders": {
+      "zxing": true,
+      "pylibdmtx": true
+    },
+    "supported_codes": ["DataMatrix", "QR Code", "GS1-128"],
+    "api_version": "1.0.0"
+  }
+}
 ```
 
 ---
