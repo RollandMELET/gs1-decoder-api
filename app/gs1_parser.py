@@ -186,36 +186,41 @@ def parse_gs1(data, verbose=False):
         if i >= len(data):
             break
             
+        # Si on trouve un séparateur Group Separator, passer au caractère suivant
+        if data[i] == '\x1d':
+            i += 1
+            continue
+            
         # Chercher l'AI le plus long possible
         ai = None
         ai_length = 0
         
         # Essayer d'abord les AIs de 4 chiffres
-        if i + 4 <= len(data):
+        if i + 4 <= len(data) and data[i:i+4].isdigit():
             candidate = data[i:i+4]
             if candidate in AI_TABLE:
                 ai = candidate
                 ai_length = 4
         
         # Gestion spéciale des AIs avec position décimale (310n-319n)
-        if not ai and i + 4 <= len(data):
+        if not ai and i + 4 <= len(data) and data[i:i+3].isdigit() and data[i+3:i+4].isdigit():
             prefix = data[i:i+3]
             digit = data[i+3:i+4]
-            if prefix.startswith(('31', '32', '33', '34', '35', '36')) and digit.isdigit():
+            if prefix.startswith(('31', '32', '33', '34', '35', '36')):
                 ai_template = prefix + "y"
                 if ai_template in AI_TABLE or prefix in AI_TABLE:
                     ai = prefix + digit
                     ai_length = 4
         
         # Puis les AIs de 3 chiffres
-        if not ai and i + 3 <= len(data):
+        if not ai and i + 3 <= len(data) and data[i:i+3].isdigit():
             candidate = data[i:i+3]
             if candidate in AI_TABLE:
                 ai = candidate
                 ai_length = 3
         
         # Puis les AIs de 2 chiffres
-        if not ai and i + 2 <= len(data):
+        if not ai and i + 2 <= len(data) and data[i:i+2].isdigit():
             candidate = data[i:i+2]
             if candidate in AI_TABLE:
                 ai = candidate
@@ -243,14 +248,14 @@ def parse_gs1(data, verbose=False):
         
         # Extraire la valeur selon que l'AI est à longueur fixe ou variable
         if is_variable:
-            # Chercher le séparateur FNC1
+            # Chercher le séparateur FNC1 (Group Separator)
             separator_pos = data.find('\x1d', i)
             if separator_pos == -1:
                 value = data[i:]
                 i = len(data)
             else:
                 value = data[i:separator_pos]
-                i = separator_pos + 1
+                i = separator_pos + 1  # Avancer après le séparateur
         else:
             # Pour les AIs à longueur fixe
             value_length = min(ai_length_max, len(data) - i)
@@ -296,11 +301,6 @@ def is_valid_gtin(gtin):
     if len(gtin) not in (8, 12, 13, 14):
         return False
     
-    # Adaptation de l'algorithme pour les différentes longueurs
-    # Pour un GTIN-8, on remplit avec des zéros à gauche
-    # Pour un GTIN-12, on remplit avec des zéros à gauche
-    # Pour un GTIN-13 et GTIN-14, on utilise tel quel
-    
     # Extraire le chiffre de contrôle (dernier chiffre)
     check_digit = int(gtin[-1])
     
@@ -309,19 +309,18 @@ def is_valid_gtin(gtin):
     
     # Calcul pour GTIN-8
     if len(gtin) == 8:
-        weighted_sum = 3 * (digits[0] + digits[2] + digits[4] + digits[6]) + (digits[1] + digits[3] + digits[5])
+        weighted_sum = 3 * sum(digits[0::2]) + sum(digits[1::2])
         
-    # Calcul pour GTIN-12
-    elif len(gtin) == 12:
-        weighted_sum = 3 * (digits[1] + digits[3] + digits[5] + digits[7] + digits[9]) + (digits[0] + digits[2] + digits[4] + digits[6] + digits[8] + digits[10])
-        
-    # Calcul pour GTIN-13
-    elif len(gtin) == 13:
-        weighted_sum = 3 * (digits[1] + digits[3] + digits[5] + digits[7] + digits[9] + digits[11]) + (digits[0] + digits[2] + digits[4] + digits[6] + digits[8] + digits[10])
-        
-    # Calcul pour GTIN-14
+    # Calcul pour GTIN-12, GTIN-13, GTIN-14
+    # L'algorithme est le même, avec alternance de poids 3 et 1, 
+    # en commençant par 3 pour la position la plus à droite
     else:
-        weighted_sum = 3 * (digits[1] + digits[3] + digits[5] + digits[7] + digits[9] + digits[11]) + (digits[0] + digits[2] + digits[4] + digits[6] + digits[8] + digits[10] + digits[12])
+        # Pour les GTIN pairs (comme GTIN-12, GTIN-14), les positions paires sont multipliées par 3
+        # Pour les GTIN impairs (comme GTIN-13), les positions impaires sont multipliées par 3
+        if len(gtin) % 2 == 0:  # GTIN-12, GTIN-14
+            weighted_sum = 3 * sum(digits[1::2]) + sum(digits[0::2])
+        else:  # GTIN-13
+            weighted_sum = 3 * sum(digits[0::2]) + sum(digits[1::2])
     
     # Calculer le chiffre de contrôle
     calculated = (10 - (weighted_sum % 10)) % 10
