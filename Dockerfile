@@ -1,24 +1,27 @@
 # Dockerfile
 FROM python:3.10-slim
 
-# --- AJOUT: Définir les versions pour une gestion plus facile ---
+# --- Définir les versions pour une gestion plus facile ---
 ARG ZXING_VERSION=3.4.1
 ARG JCOMMANDER_VERSION=1.78 # Version compatible et stable
 
-# 1) Prérequis système : Java, libdmtx, wget et autres dépendances que vous aviez
+# 1) Prérequis système : Java, libdmtx, wget et autres dépendances
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      # Paquets nécessaires :
-      default-jre-headless \  # Java Runtime Environment
-      libdmtx-dev \           # Dépendance C pour pylibdmtx
-      wget \                  # Outil pour télécharger les JARs
-      ghostscript \           # Conservé car présent initialement
-      libmagickwand-dev && \  # Conservé car présent initialement
+      # Java Runtime Environment
+      default-jre-headless \
+      # Dépendance C pour pylibdmtx
+      libdmtx-dev \
+      # Outil pour télécharger les JARs
+      wget \
+      # Conservé car présent initialement
+      ghostscript \
+      # Conservé car présent initialement
+      libmagickwand-dev && \
     # Nettoyage pour réduire la taille de l'image
     rm -rf /var/lib/apt/lists/*
 
 # 2) Récupération des JARs ZXing JavaSE et JCommander nécessaires
-#    Création du répertoire et téléchargement des deux JARs dans une seule couche RUN
 RUN mkdir -p /zxing && \
     # Téléchargement du JAR principal de ZXing
     wget -q \
