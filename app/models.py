@@ -1,3 +1,5 @@
+# --- START OF FILE models.py ---
+
 from pydantic import BaseModel, Field
 from typing import List, Union, Dict, Any, Optional
 from enum import Enum
@@ -10,10 +12,19 @@ class DecoderInfo(BaseModel):
     confidence: Optional[float] = None
     characteristics: Optional[Dict[str, Any]] = None
 
+# --- NOUVEAU: Classe pour la structure parsée en mode verbose ---
+class ParsedVerboseItem(BaseModel):
+    """Structure d'un élément AI parsé en mode verbose."""
+    ai: str
+    name: str
+    value: str
+    valid: bool # Accepte explicitement un booléen
+
 class BarcodeItem(BaseModel):
     """Représentation d'un code-barres décodé avec métadonnées."""
     raw: str
-    parsed: Union[Dict[str, str], List[Dict[str, str]]]
+    # --- MODIFIÉ: Utilise ParsedVerboseItem dans l'Union ---
+    parsed: Union[Dict[str, str], List[ParsedVerboseItem]]
     decoder_info: DecoderInfo
 
 class DecodeResponse(BaseModel):
@@ -34,7 +45,7 @@ class DecoderCapabilities(BaseModel):
 class HealthResponse(BaseModel):
     """Réponse de l'API pour l'endpoint de santé."""
     status: str
-    capabilities: Dict[str, Any]
+    capabilities: Dict[str, Any] # Gardé Any ici, car le contenu est variable
 
 # Modèles pour la génération de codes-barres
 
@@ -60,10 +71,14 @@ class GenerateRequest(BaseModel):
     image_format: ImageFormat = Field(default=ImageFormat.PNG, description="Format de l'image générée")
     width: int = Field(default=300, ge=50, le=1000, description="Largeur de l'image en pixels")
     height: int = Field(default=300, ge=50, le=1000, description="Hauteur de l'image en pixels")
-    
-class GenerateResponse(BaseModel):
-    """Réponse pour la génération réussie d'un code-barres."""
-    success: bool
-    format: BarcodeFormat
-    image_url: str
-    data: str
+
+# GenerateResponse n'existe pas dans le code original, mais serait utile
+# Si vous voulez un retour structuré pour la génération au lieu de l'image directe
+# class GenerateResponse(BaseModel):
+#     """Réponse pour la génération réussie d'un code-barres."""
+#     success: bool
+#     format: BarcodeFormat
+#     image_url: Optional[str] = None # Ou image_data: bytes
+#     data: str
+
+# --- FIN DU FICHIER models.py ---
