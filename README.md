@@ -28,7 +28,7 @@ Microservice pour décoder des codes-barres GS1 (1D/2D) à partir d'une image, a
 ## 🔥 API Endpoints
 
 | Méthode | URL          | Description                  |
-|:--------|:-------------|:------------------------------|
+|:--------|:-------------|:-----------------------------|
 | GET     | `/health`    | Vérifie que le service tourne |
 | POST    | `/decode/`   | Envoie une image, decode et parse |
 
@@ -47,6 +47,23 @@ curl -X POST https://gs1-decoder-api.rorworld.eu/decode/ \
   -F "verbose=false"
 ```
 
+**Résultat attendu**
+```json
+{
+  "success": true,
+  "barcodes": [
+    {
+      "raw": "0101234567890128172312311021ABCDEF12345",
+      "parsed": {
+        "GTIN": "01234567890128",
+        "ExpirationDate": "231231",
+        "Batch/Lot": "ABCDEF12345"
+      }
+    }
+  ]
+}
+```
+
 **Scan verbose**
 ```bash
 curl -X POST https://gs1-decoder-api.rorworld.eu/decode/ \
@@ -54,9 +71,43 @@ curl -X POST https://gs1-decoder-api.rorworld.eu/decode/ \
   -F "verbose=true"
 ```
 
+**Résultat attendu**
+```json
+{
+  "success": true,
+  "barcodes": [
+    {
+      "raw": "0101234567890128172312311021ABCDEF12345",
+      "parsed": [
+        {
+          "ai": "01",
+          "name": "GTIN",
+          "value": "01234567890128"
+        },
+        {
+          "ai": "17",
+          "name": "ExpirationDate",
+          "value": "231231"
+        },
+        {
+          "ai": "10",
+          "name": "Batch/Lot",
+          "value": "ABCDEF12345"
+        }
+      ]
+    }
+  ]
+}
+```
+
 **Healthcheck**
 ```bash
 curl https://gs1-decoder-api.rorworld.eu/health
+```
+
+**Résultat attendu**
+```json
+{"status": "OK"}
 ```
 
 ---
