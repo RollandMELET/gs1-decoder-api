@@ -1,19 +1,20 @@
-# --- START OF FILE main.py (JPype Version) ---
+# --- START OF FILE main.py (Cleaned JPype Version) ---
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Depends, Response
 from fastapi.responses import StreamingResponse
-from contextlib import asynccontextmanager # Pour gérer le cycle de vie JPype/FastAPI
+from contextlib import asynccontextmanager
 import jpype
-import jpype.imports # Pour importer des packages Java comme s'ils étaient Python
-from jpype.types import JString # Pour type hinting si nécessaire
+import jpype.imports
+from jpype.types import JString
 
-from app.gs1_parser import parse_gs1 # Garder le parser original
+from app.gs1_parser import parse_gs1 # Utiliser le parser original
 from app.models import (
     DecodeResponse, ErrorResponse, HealthResponse,
     GenerateRequest, BarcodeFormat, ImageFormat,
     DecoderInfo, BarcodeItem
 )
-from app.barcode_detector import DecoderType, get_decoder_info
+# --- MODIFICATION: Importer barcode_detector pour ajustement ---
+from app.barcode_detector import DecoderType, get_decoder_info, BarcodeFormat as DetectedBarcodeFormat
 from app.barcode_generator import generate_barcode, BarcodeFormat as GenBarcodeFormat, ImageFormat as GenImageFormat
 import shutil
 from pylibdmtx.pylibdmtx import decode as dmtx_decode
@@ -21,7 +22,7 @@ from PIL import Image
 import os
 import io
 
-# --- Variables Globales pour JPype et Classes Java ---
+# --- JPype Global Variables ---
 jpype_started = False
 NotFoundException = None
 IOException = None
@@ -33,12 +34,9 @@ BinaryBitmap = None
 MultiFormatReader = None
 DecodeHintType = None
 Hints_java = None
-
-# --- Définir le Classpath ---
-# Doit correspondre aux chemins dans le Dockerfile
 ZXING_CLASSPATH = "/zxing/core.jar:/zxing/javase.jar"
 
-# --- Gestion du cycle de vie FastAPI avec JPype ---
+# --- Lifespan Manager (inchangé mais essentiel) ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     global jpype_started, NotFoundException, IOException, ImageIO, File_java
@@ -47,67 +45,55 @@ async def lifespan(app: FastAPI):
 
     print("Starting JPype JVM...")
     try:
-        # Démarrer la JVM une seule fois au démarrage de l'application
-        # convertStrings=False est CRUCIAL pour potentiellement préserver \x1d
         if not jpype.isJVMStarted():
              jpype.startJVM(
                  jpype.getDefaultJVMPath(),
-                 "-ea", # Enable assertions (optionnel)
+                 "-ea",
                  f"-Djava.class.path={ZXING_CLASSPATH}",
-                 convertStrings=False # TRES IMPORTANT
+                 convertStrings=False # Crucial pour \x1d
              )
              jpype_started = True
              print("JPype JVM Started Successfully.")
 
-             # Importer les classes Java nécessaires une fois
              print("Importing Java classes...")
-             # Exceptions
              NotFoundException = jpype.JClass("com.google.zxing.NotFoundException")
              IOException = jpype.JClass("java.io.IOException")
-             # Lecture Image
              ImageIO = jpype.JClass("javax.imageio.ImageIO")
              File_java = jpype.JClass("java.io.File")
-             # Préparation ZXing
              BufferedImageLuminanceSource = jpype.JClass("com.google.zxing.client.j2se.BufferedImageLuminanceSource")
              HybridBinarizer = jpype.JClass("com.google.zxing.common.HybridBinarizer")
              BinaryBitmap = jpype.JClass("com.google.zxing.BinaryBitmap")
-             # Lecteur
              MultiFormatReader = jpype.JClass("com.google.zxing.MultiFormatReader")
-             # Hints (pour spécifier DATA_MATRIX et TRY_HARDER)
              DecodeHintType = jpype.JClass("com.google.zxing.DecodeHintType")
              Hints_java = jpype.JClass("java.util.Hashtable")
              print("Java classes imported.")
 
     except Exception as e:
         print(f"FATAL: Failed to start JPype JVM or import classes: {e}")
-        jpype_started = False # Marquer comme échoué
+        jpype_started = False
 
-    yield # L'application tourne ici
-
-    # Code de nettoyage (pas de shutdown JVM dans les apps serveur généralement)
+    yield
     print("FastAPI shutting down (JPype JVM remains running).")
 
-
-# --- Initialiser l'application FastAPI avec le lifespan manager ---
+# --- Application FastAPI ---
 app = FastAPI(
     title="GS1 Decoder API (JPype)",
-    description="API pour décoder des codes-barres GS1 via JPype/ZXing",
-    version="1.1.6-jpype",
-    lifespan=lifespan # Gérer le démarrage/arrêt
+    description="API pour décoder et générer des codes-barres GS1 via JPype/ZXing et pylibdmtx fallback",
+    version="1.2.0", # Version stable
+    lifespan=lifespan
 )
 
 @app.get("/health", response_model=HealthResponse)
 async def health():
-    # Health check basé sur si la JVM a démarré et les classes chargées
-    zxing_ok = jpype_started and MultiFormatReader is not None
+    zxing_ok = jpype_started and MultiFormatReader is not None and shutil.which("java") is not None
     capabilities = {
         "decoders": {
-            "zxing": zxing_ok, # Basé sur l'état JPype
+            "zxing_jpype": zxing_ok, # Préciser JPype
             "pylibdmtx": _check_pylibdmtx_available()
         },
         "supported_codes": ["DataMatrix", "QR Code", "GS1-128", "GS1 DataMatrix", "GS1 QR Code"],
         "api_version": app.version,
-        "features": {"decode": True, "generate": False } # Désactiver generate pour simplifier
+        "features": {"decode": True, "generate": True } # Réactiver generate
     }
     return {"status": "OK", "capabilities": capabilities}
 
@@ -138,8 +124,8 @@ async def decode_image(
     logf = None
     if debug and log_file:
         try:
-            logf = open(log_file, "w")
-            logf.write(f"--- New Request (Test JPype/ZXing) ---\n")
+            logf = open(log_file, "w") # Ecraser log
+            logf.write(f"--- New Decode Request ---\n")
             logf.write(f"[DEBUG] Saved upload to {temp_file_path}\n")
         except Exception as e:
             print(f"Warning: Impossible d'ouvrir le fichier de log {log_file}: {e}")
@@ -148,107 +134,96 @@ async def decode_image(
     decoded = []
     decoder_used = DecoderType.NONE
     zxing_error_msg = None
+    barcode_format_hint = None # Pour aider get_decoder_info
 
     # 1) ZXing attempt (via JPype)
-    if jpype_started and MultiFormatReader: # Vérifier si JPype est prêt
+    if jpype_started and MultiFormatReader:
         try:
             if logf: logf.write(f"[DEBUG] Attempting decode with JPype/ZXing...\n")
-
-            # Créer un objet File Java
             j_file = File_java(JString(temp_file_path))
-            if not j_file.exists():
-                 raise FileNotFoundError(f"Java ne peut pas trouver le fichier: {temp_file_path}")
+            if not j_file.exists(): raise FileNotFoundError(f"Java file not found: {temp_file_path}")
 
-            # Lire l'image en Java BufferedImage
             buffered_image = ImageIO.read(j_file)
-            if buffered_image is None:
-                 raise ValueError(f"ImageIO n'a pas pu lire le fichier (format non supporté?): {temp_file_path}")
+            if buffered_image is None: raise ValueError("ImageIO could not read file")
 
-            # Préparer pour ZXing
             luminance_source = BufferedImageLuminanceSource(buffered_image)
             binarizer = HybridBinarizer(luminance_source)
             binary_bitmap = BinaryBitmap(binarizer)
 
-            # Configurer les hints pour aider le décodage
             hints = Hints_java()
-            # Spécifier le format DataMatrix
             possible_formats = jpype.java.util.Vector()
+            # Essayer de détecter tous les formats supportés par ZXing que l'on gère
             possible_formats.add(jpype.JClass("com.google.zxing.BarcodeFormat").DATA_MATRIX)
+            possible_formats.add(jpype.JClass("com.google.zxing.BarcodeFormat").QR_CODE)
+            possible_formats.add(jpype.JClass("com.google.zxing.BarcodeFormat").CODE_128)
             hints.put(DecodeHintType.POSSIBLE_FORMATS, possible_formats)
-            # Essayer plus fort
             hints.put(DecodeHintType.TRY_HARDER, jpype.java.lang.Boolean.TRUE)
 
-            # Créer le lecteur et décoder
             reader = MultiFormatReader()
-            if logf: logf.write(f"[DEBUG] Calling reader.decode() with hints...\n")
-            java_result = reader.decode(binary_bitmap, hints) # Appel Java
+            java_result = reader.decode(binary_bitmap, hints)
 
             if java_result:
-                # Obtenir le texte brut (Java String)
                 raw_java_string = java_result.getText()
-                # Convertir en chaîne Python (JPype le fait souvent implicitement, mais soyons explicites)
-                # Crucial de voir si cette conversion préserve \x1d avec convertStrings=False
-                raw_python_string = str(raw_java_string)
+                raw_python_string = str(raw_java_string) # Conversion Python str
+                detected_java_format = java_result.getBarcodeFormat()
 
                 decoded = [raw_python_string]
-                decoder_used = DecoderType.ZXING
-                if logf: logf.write(f"[DEBUG] JPype/ZXing success. Raw data extracted: {decoded}\n")
-            else:
-                # Ne devrait pas arriver si decode lance NotFoundException
-                if logf: logf.write(f"[DEBUG] JPype/ZXing decode returned None (inattendu).\n")
-                zxing_error_msg = "decode returned None"
+                decoder_used = DecoderType.ZXING # On utilise le type ZXING standard
+                barcode_format_hint = str(detected_java_format) # Ex: "DATA_MATRIX"
 
-        # Gérer les exceptions Java spécifiques
+                if logf:
+                    logf.write(f"[DEBUG] JPype/ZXing success. Format: {barcode_format_hint}\n")
+                    logf.write(f"[DEBUG] Raw data (repr): {repr(raw_python_string)}\n") # Log du repr ici
+
+            else: # Ne devrait pas arriver normalement
+                zxing_error_msg = "decode returned null"
+                if logf: logf.write(f"[WARN] JPype/ZXing {zxing_error_msg}\n")
+
         except jpype.JException(NotFoundException) as e:
-            zxing_error_msg = "NotFoundException (pas de code trouvé)"
-            if logf: logf.write(f"[DEBUG] JPype/ZXing: {zxing_error_msg} - {e}\n")
-            decoded = []
+            zxing_error_msg = "NotFoundException (no code found)"
+            if logf: logf.write(f"[DEBUG] JPype/ZXing: {zxing_error_msg}\n")
         except jpype.JException(IOException) as e:
-             zxing_error_msg = f"IOException lors de la lecture image: {e}"
+             zxing_error_msg = f"IOException reading image: {e}"
              if logf: logf.write(f"[ERROR] JPype/ZXing: {zxing_error_msg}\n")
-             decoded = []
-        except Exception as e: # Attraper les autres erreurs (Python ou Java non gérées)
-            zxing_error_msg = f"Erreur JPype/ZXing: {e}"
+        except Exception as e:
+            zxing_error_msg = f"JPype/ZXing Error: {e}"
             if logf: logf.write(f"[ERROR] {zxing_error_msg}\n")
-            # Imprimer la stack trace Java si c'est une exception Java
             if isinstance(e, jpype.JException):
                  print(f"Java Stack Trace:\n{e.stacktrace()}")
                  if logf: logf.write(f"Java Stack Trace:\n{e.stacktrace()}\n")
-            decoded = []
-
+            decoded = [] # Echec -> liste vide
     else:
-        if logf: logf.write("[DEBUG] Skipping JPype/ZXing attempt: not available.\n")
-        zxing_error_msg = "JPype/ZXing not available."
+        if logf: logf.write("[DEBUG] Skipping JPype/ZXing: not available.\n")
+        zxing_error_msg = "JPype/ZXing not available"
 
-    # 2) Fallback to pylibdmtx if ZXing via JPype failed or found nothing
+    # 2) Fallback to pylibdmtx if JPype/ZXing failed
     if not decoded:
         if logf:
-            logf.write(f"[DEBUG] JPype/ZXing found nothing or failed ({zxing_error_msg}). Trying pylibdmtx...\n")
+            logf.write(f"[DEBUG] JPype/ZXing failed ({zxing_error_msg}). Trying pylibdmtx...\n")
         if _check_pylibdmtx_available():
             try:
-                # Utiliser le chemin Python pour Pillow
                 img = Image.open(temp_file_path)
                 dmtx_results = dmtx_decode(img.convert('L'))
                 if dmtx_results:
                     decoded = [res.data.decode("utf-8") for res in dmtx_results]
                     decoder_used = DecoderType.PYLIBDMTX
-                    if logf: logf.write(f"[DEBUG] pylibdmtx found {len(decoded)} codes: {decoded}\n")
+                    barcode_format_hint = "DATA_MATRIX" # pylibdmtx ne fait que ça
+                    if logf: logf.write(f"[DEBUG] pylibdmtx found {len(decoded)} code(s).\n")
+                    if logf: # Log repr ici aussi pour comparer si besoin
+                         for i, raw_data in enumerate(decoded):
+                            logf.write(f"[DEBUG] pylibdmtx raw data item {i} (repr): {repr(raw_data)}\n")
                 else:
                      if logf: logf.write("[DEBUG] pylibdmtx found no codes.\n")
             except Exception as e:
                 if logf: logf.write(f"[ERROR] pylibdmtx error: {e}\n")
-                if decoder_used != DecoderType.ZXING: decoded = []
+                decoded = [] # Echec fallback
         else:
-             if logf: logf.write("[DEBUG] Skipping pylibdmtx attempt: not available.\n")
+             if logf: logf.write("[DEBUG] pylibdmtx not available for fallback.\n")
 
-    # Finalize logs section
+    # Finalize logs section (juste fin du log)
     if logf:
-        logf.write(f"[DEBUG] Final decoder used: {decoder_used}\n")
-        logf.write(f"[DEBUG] Final decoded data: {decoded}\n")
-        if decoded and logf:
-             for i, raw_data in enumerate(decoded):
-                 # --- TOUJOURS logger repr() pour voir si on a \x1d ---
-                 logf.write(f"[DEBUG] Raw data item {i} from final decoder (repr): {repr(raw_data)}\n")
+        logf.write(f"[DEBUG] Final decoder selected: {decoder_used}\n")
+        logf.write(f"[DEBUG] Final data count: {len(decoded)}\n")
         logf.close()
 
     # Supprimer le fichier temporaire
@@ -257,47 +232,64 @@ async def decode_image(
     except OSError as e:
         print(f"Warning: Could not remove temporary file {temp_file_path}: {e}")
 
+    # Gérer l'échec final
     if not decoded:
-        detail_msg = "Aucun code-barres détecté dans l'image."
+        detail_msg = "Aucun code-barres détecté ou décodable dans l'image."
         if zxing_error_msg and decoder_used == DecoderType.NONE:
-             detail_msg += f" (ZXing/JPype error: {zxing_error_msg})"
-        elif decoder_used == DecoderType.NONE:
-             detail_msg += " (pylibdmtx a aussi échoué ou n'a rien trouvé)."
+             detail_msg += f" (ZXing Error: {zxing_error_msg})"
         raise HTTPException(status_code=422, detail=detail_msg)
 
+    # Parsing et construction réponse
     barcodes_response = []
     for raw in decoded:
         try:
-            # --- Utiliser le parser GS1 ORIGINAL ---
+            # Utiliser le parser GS1 original (qui fonctionne avec \x1d)
             parsed_data = parse_gs1(raw, verbose=verbose)
+
+            # --- Utilisation de get_decoder_info (peut être ajusté plus tard) ---
+            # On passe le nom Java brut du format si on l'a, sinon None
             decoder_name_for_info = "ZXing (JPype)" if decoder_used == DecoderType.ZXING else decoder_used.value
-            decoder_info_dict = get_decoder_info(raw, decoder_used, verbose=verbose)
+            # Utiliser le barcode_format_hint obtenu du décodeur
+            decoder_info_dict = get_decoder_info_adjusted(raw, decoder_used, barcode_format_hint, verbose=verbose)
+            # Surcharger le nom du décodeur
             decoder_info_dict["decoder"] = decoder_name_for_info
+
             decoder_info_model = DecoderInfo(**decoder_info_dict)
             barcode_item = BarcodeItem(raw=raw, parsed=parsed_data, decoder_info=decoder_info_model)
             barcodes_response.append(barcode_item)
         except Exception as e:
-            print(f"Error processing barcode data '{raw}': {e}")
-            if debug and log_file:
-                try:
-                    with open(log_file, "a") as err_logf:
-                         err_logf.write(f"[ERROR] Failed to process/parse raw data '{raw}': {e}\n")
-                except: pass
+            print(f"Error processing barcode data '{raw}': {e}") # Log erreur parsing
+            # Ne pas planter toute la requête si un seul code échoue au parsing
 
-    if not barcodes_response:
-         raise HTTPException(status_code=500, detail="Erreur lors du traitement des données.")
+    if not barcodes_response: # Si le parsing a échoué pour tous les codes trouvés
+         raise HTTPException(
+            status_code=500,
+            detail="Données décodées mais erreur lors du parsing GS1."
+        )
 
     return DecodeResponse(success=True, barcodes=barcodes_response)
 
-# --- Endpoint /generate/ (laissé tel quel mais commenté pour simplicité) ---
-# @app.post("/generate/", ...)
-# async def generate_barcode_image(request: GenerateRequest):
-#     # ... (code inchangé mais non prioritaire) ...
-#     pass
+# --- Endpoint /generate/ (peut être réactivé si besoin) ---
+@app.post("/generate/", responses={ 200: {"content": {"image/png": {}, "image/jpeg": {}, "image/svg+xml": {}}}, 422: {"model": ErrorResponse}, 501: {"model": ErrorResponse}, 500: {"model": ErrorResponse} }, summary="Génère un code-barres GS1", description="Crée une image de code-barres à partir des données GS1 fournies")
+async def generate_barcode_image(request: GenerateRequest):
+    # ... (code generate inchangé) ...
+    try:
+        barcode_format_map = { BarcodeFormat.DATAMATRIX: GenBarcodeFormat.DATAMATRIX, BarcodeFormat.QRCODE: GenBarcodeFormat.QRCODE, BarcodeFormat.CODE128: GenBarcodeFormat.CODE128, BarcodeFormat.GS1_128: GenBarcodeFormat.GS1_128, BarcodeFormat.GS1_DATAMATRIX: GenBarcodeFormat.GS1_DATAMATRIX, BarcodeFormat.GS1_QRCODE: GenBarcodeFormat.GS1_QRCODE, }
+        image_format_map = { ImageFormat.PNG: GenImageFormat.PNG, ImageFormat.JPEG: GenImageFormat.JPEG, ImageFormat.SVG: GenImageFormat.SVG, }
+        internal_barcode_format = barcode_format_map.get(request.format); internal_image_format = image_format_map.get(request.image_format)
+        if internal_barcode_format is None: raise ValueError(f"Format de code-barres non supporté: {request.format}")
+        if internal_image_format is None: raise ValueError(f"Format d'image non supporté: {request.image_format}")
+        barcode_image_bytes = generate_barcode(data=request.data, barcode_format=internal_barcode_format, image_format=internal_image_format, width=request.width, height=request.height)
+        mime_types = { ImageFormat.PNG: "image/png", ImageFormat.JPEG: "image/jpeg", ImageFormat.SVG: "image/svg+xml" }; media_type = mime_types.get(request.image_format)
+        if media_type is None: raise ValueError(f"Type MIME inconnu pour format: {request.image_format}")
+        return StreamingResponse(io.BytesIO(barcode_image_bytes), media_type=media_type, headers={"Content-Disposition": f"inline; filename=\"barcode_{request.format.value}.{request.image_format.value}\""})
+    except ValueError as e: raise HTTPException(status_code=422, detail=str(e))
+    except ImportError as e: raise HTTPException(status_code=501, detail=f"Fonctionnalité non disponible (dépendance manquante): {str(e)}")
+    except NotImplementedError as e: raise HTTPException(status_code=501, detail=f"Fonctionnalité non implémentée: {str(e)}")
+    except Exception as e: print(f"Erreur inattendue lors de la génération du code-barres: {e}"); raise HTTPException(status_code=500, detail=f"Erreur interne lors de la génération du code-barres.")
 
-# --- Fonctions de vérification mises à jour ---
+# --- Fonctions de vérification (inchangées) ---
 def _check_zxing_available():
-    # Vérifie si JPype a démarré correctement et si Java est dans le path
     return jpype_started and MultiFormatReader is not None and shutil.which("java") is not None
 
 def _check_pylibdmtx_available():
@@ -307,4 +299,63 @@ def _check_pylibdmtx_available():
     except ImportError: return False
     except Exception: return False
 
-# --- FIN DU FICHIER main.py (JPype Version) ---
+# --- Fonction Ajustée pour obtenir DecoderInfo ---
+# Ceci est une copie de get_decoder_info de barcode_detector.py
+# avec un ajustement pour utiliser le format hint de JPype/ZXing si disponible
+# Idéalement, cette logique devrait être DANS barcode_detector.py
+from app.barcode_detector import is_gs1_data, detect_generic_format, calculate_confidence, get_barcode_characteristics
+
+def get_decoder_info_adjusted(raw_data, decoder_used, format_hint=None, verbose=False):
+    """
+    Génère des informations détaillées sur le décodage,
+    en utilisant une indication de format si fournie par le décodeur.
+    """
+    detected_format = None
+    is_gs1 = is_gs1_data(raw_data)
+
+    # Utiliser l'indice de format si disponible (plus fiable)
+    if format_hint:
+        if format_hint == "DATA_MATRIX":
+            detected_format = DetectedBarcodeFormat.GS1_DATAMATRIX if is_gs1 else DetectedBarcodeFormat.DATAMATRIX
+        elif format_hint == "QR_CODE":
+             detected_format = DetectedBarcodeFormat.GS1_QRCODE if is_gs1 else DetectedBarcodeFormat.QRCODE
+        elif format_hint == "CODE_128":
+             detected_format = DetectedBarcodeFormat.GS1_128 if is_gs1 else DetectedBarcodeFormat.CODE128
+        # Ajouter d'autres formats si nécessaire
+        else: # Fallback si format_hint non géré
+             detected_format = detect_generic_format(raw_data)
+             if is_gs1 and detected_format in [DetectedBarcodeFormat.CODE128, DetectedBarcodeFormat.UNKNOWN]:
+                   detected_format = DetectedBarcodeFormat.GS1_128 # Supposer GS1-128 si GS1 et format linéaire/inconnu
+
+    # Si pas d'indice, utiliser la détection basée sur les données
+    if detected_format is None:
+        if is_gs1:
+            # On pourrait essayer d'affiner ici, mais sans info décodeur c'est dur
+            # Par défaut, on pourrait supposer DataMatrix si contient '.' ou est long?
+            # Ou rester générique si impossible de deviner
+            from app.barcode_detector import has_datamatrix_characteristics, has_qrcode_characteristics
+            if has_datamatrix_characteristics(raw_data):
+                 detected_format = DetectedBarcodeFormat.GS1_DATAMATRIX
+            elif has_qrcode_characteristics(raw_data):
+                 detected_format = DetectedBarcodeFormat.GS1_QRCODE
+            else: # Probablement linéaire
+                 detected_format = DetectedBarcodeFormat.GS1_128
+        else:
+            detected_format = detect_generic_format(raw_data)
+
+
+    # Informations de base
+    info = {
+        "decoder": decoder_used.value, # Utiliser .value pour obtenir la string de l'Enum
+        "format": detected_format.value,
+        "is_gs1": detected_format in [DetectedBarcodeFormat.GS1_128, DetectedBarcodeFormat.GS1_DATAMATRIX, DetectedBarcodeFormat.GS1_QRCODE]
+    }
+
+    if verbose:
+        info["confidence"] = calculate_confidence(raw_data, decoder_used, detected_format)
+        info["characteristics"] = get_barcode_characteristics(raw_data, detected_format)
+
+    return info
+
+
+# --- FIN DU FICHIER main.py ---
