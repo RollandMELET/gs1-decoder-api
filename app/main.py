@@ -2,7 +2,7 @@
 
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Depends, Response
 from fastapi.responses import StreamingResponse
-from app.gs1_parser import parse_gs1 # Garder le parser original pour ce test
+from app.gs1_parser import parse_gs1 # Garder le parser original
 from app.models import (
     DecodeResponse, ErrorResponse, HealthResponse,
     GenerateRequest, BarcodeFormat, ImageFormat,
@@ -11,37 +11,45 @@ from app.models import (
 from app.barcode_detector import DecoderType, get_decoder_info
 from app.barcode_generator import generate_barcode, BarcodeFormat as GenBarcodeFormat, ImageFormat as GenImageFormat
 import shutil
-import subprocess
+# --- Suppression de subprocess car plus utilisé pour ZXing ---
+# import subprocess
 from pylibdmtx.pylibdmtx import decode as dmtx_decode
 from PIL import Image
 import os
 import io
+# --- AJOUT: Import de la bibliothèque zxing-python ---
+import zxing
 
 app = FastAPI(
     title="GS1 Decoder API",
     description="API pour décoder et générer des codes-barres au format GS1",
-    version="1.1.3" # Incrémenté pour l'étape 2 (test --raw)
+    version="1.1.4" # Incrémenté pour l'étape zxing-python
 )
+
+# --- AJOUT: Initialiser le lecteur zxing-python ---
+# Spécifier le chemin vers les JARs que nous avons téléchargés
+try:
+    zxing_reader = zxing.BarCodeReader(
+        classpath="/zxing/core.jar:/zxing/javase.jar:/zxing/jcommander.jar"
+    )
+    ZXING_PYTHON_AVAILABLE = True
+except Exception as e:
+    print(f"Erreur initialisation zxing-python: {e}. ZXing ne sera pas disponible.")
+    zxing_reader = None
+    ZXING_PYTHON_AVAILABLE = False
+
 
 @app.get("/health", response_model=HealthResponse)
 async def health():
-    """
-    Vérifie l'état du service et retourne des informations sur les capacités.
-
-    Returns:
-        dict: Statut et capacités du service
-    """
     capabilities = {
+        # --- MODIFIÉ: Vérifier zxing-python ---
         "decoders": {
-            "zxing": _check_zxing_available(),
+            "zxing": ZXING_PYTHON_AVAILABLE, # Utiliser notre flag
             "pylibdmtx": _check_pylibdmtx_available()
         },
         "supported_codes": ["DataMatrix", "QR Code", "GS1-128", "GS1 DataMatrix", "GS1 QR Code"],
         "api_version": app.version,
-        "features": {
-            "decode": True,
-            "generate": True
-        }
+        "features": {"decode": True, "generate": True }
     }
     return {"status": "OK", "capabilities": capabilities}
 
@@ -68,8 +76,8 @@ async def decode_image(
     logf = None
     if debug and log_file:
         try:
-            logf = open(log_file, "w") # Ecraser le log
-            logf.write(f"--- New Request (Test --raw) ---\n")
+            logf = open(log_file, "w")
+            logf.write(f"--- New Request (Test zxing-python) ---\n")
             logf.write(f"[DEBUG] Saved upload to {temp_file_path}\n")
         except Exception as e:
             print(f"Warning: Impossible d'ouvrir le fichier de log {log_file}: {e}")
@@ -77,74 +85,42 @@ async def decode_image(
 
     decoded = []
     decoder_used = DecoderType.NONE
-    zxing_stderr = ""
+    zxing_error_msg = None # Pour stocker l'erreur éventuelle
 
-    # 1) ZXing attempt (avec --raw)
-    if _check_zxing_available():
+    # 1) ZXing attempt (via zxing-python)
+    if ZXING_PYTHON_AVAILABLE and zxing_reader:
         try:
-            # --- MODIFICATION: Ajout de l'option --raw ---
-            cmd = [
-                "java",
-                "-cp", "/zxing/core.jar:/zxing/javase.jar:/zxing/jcommander.jar",
-                "com.google.zxing.client.j2se.CommandLineRunner",
-                temp_file_path,
-                "--raw" # Tentative avec l'option --raw
-            ]
-            if logf:
-                logf.write(f"[DEBUG] Running ZXing command: {' '.join(cmd)}\n")
+            if logf: logf.write(f"[DEBUG] Attempting decode with zxing-python...\n")
+            # --- MODIFICATION: Utilisation de zxing-python ---
+            barcode = zxing_reader.decode(temp_file_path, try_harder=True, possible_formats=["DATA_MATRIX"]) # Spécifier format peut aider
 
-            result = subprocess.run(cmd, capture_output=True, text=True, check=False)
-            zxing_stderr = result.stderr.strip()
-
-            # --- MODIFICATION: Logique d'extraction de stdout améliorée ---
-            decoded_value = None
-            if result.returncode == 0 and result.stdout:
-                lines = result.stdout.strip().splitlines()
-                # Chercher la ligne APRES "Raw result:" ou "Parsed result:"
-                # ou prendre directement la sortie si --raw change le format
-                found_marker = False
-                for i, line in enumerate(lines):
-                    line_strip = line.strip()
-                    if line_strip == "Raw result:" or line_strip == "Parsed result:":
-                        if i + 1 < len(lines):
-                            decoded_value = lines[i+1].strip()
-                            found_marker = True
-                            break # Prendre la première donnée après un marqueur
-                # Si aucun marqueur n'est trouvé, et que --raw a peut-être juste imprimé la donnée:
-                if not found_marker and lines:
-                     # On suppose que la première ligne non vide qui n'est pas le chemin du fichier
-                     # et qui n'est pas un message standard pourrait être la donnée brute
-                     potential_data = next((line.strip() for line in lines if line.strip() and not line.startswith("file:") and not line.startswith("Found")), None)
-                     if potential_data:
-                          decoded_value = potential_data
-
-
-            # Assigner à 'decoded' si une valeur a été extraite
-            if decoded_value:
-                decoded = [decoded_value]
-                decoder_used = DecoderType.ZXING
+            if barcode:
+                # Extraire la donnée brute. Vérifier la structure de l'objet 'barcode'
+                # La doc suggère barcode.raw ou barcode.parsed
+                raw_data = barcode.raw # Essayons .raw d'abord
+                if raw_data:
+                    # zxing-python retourne des bytes, décoder en utf-8
+                    decoded = [raw_data.decode('utf-8')]
+                    decoder_used = DecoderType.ZXING # Marquer comme ZXing
+                    if logf: logf.write(f"[DEBUG] zxing-python success. Raw data extracted: {decoded}\n")
+                else:
+                    if logf: logf.write(f"[DEBUG] zxing-python found barcode but no raw data field.\n")
             else:
-                decoded = []
-             # --- Fin de la logique d'extraction ---
+                if logf: logf.write(f"[DEBUG] zxing-python found no barcode.\n")
 
-            if logf:
-                logf.write(f"[DEBUG] ZXing return code: {result.returncode}\n")
-                logf.write(f"[DEBUG] ZXing stdout (full): {result.stdout.strip()}\n")
-                logf.write(f"[DEBUG] ZXing stderr: {zxing_stderr}\n")
-                logf.write(f"[DEBUG] ZXing decoded after parsing stdout logic: {decoded}\n")
+        except Exception as e:
+            zxing_error_msg = f"zxing-python error: {e}"
+            if logf: logf.write(f"[ERROR] {zxing_error_msg}\n")
+            decoded = [] # Assurer que decoded est vide en cas d'erreur
 
-        except Exception as e: # Attraper toutes les exceptions ici
-            if logf: logf.write(f"[ERROR] ZXing subprocess failed: {e}\n")
-            zxing_stderr = f"Subprocess error: {e}"
-            decoded = [] # Assurer que decoded est vide en cas d'erreur subprocess
     else:
-        if logf: logf.write("[DEBUG] Skipping ZXing attempt: prerequisites not met.\n")
-        zxing_stderr = "ZXing prerequisites not met."
+        if logf: logf.write("[DEBUG] Skipping zxing-python attempt: not available.\n")
+        zxing_error_msg = "zxing-python not available."
 
     # 2) Fallback to pylibdmtx if ZXing failed or found nothing
     if not decoded:
         if logf:
-            logf.write(f"[DEBUG] ZXing found nothing or failed (stderr: {zxing_stderr}). Trying pylibdmtx...\n")
+            logf.write(f"[DEBUG] zxing-python found nothing or failed ({zxing_error_msg}). Trying pylibdmtx...\n")
         if _check_pylibdmtx_available():
             try:
                 img = Image.open(temp_file_path)
@@ -154,12 +130,13 @@ async def decode_image(
                     decoder_used = DecoderType.PYLIBDMTX
                     if logf: logf.write(f"[DEBUG] pylibdmtx found {len(decoded)} codes: {decoded}\n")
                 else:
-                    if logf: logf.write("[DEBUG] pylibdmtx found no codes.\n")
+                     if logf: logf.write("[DEBUG] pylibdmtx found no codes.\n")
             except Exception as e:
                 if logf: logf.write(f"[ERROR] pylibdmtx error: {e}\n")
                 if decoder_used != DecoderType.ZXING: decoded = []
         else:
-             if logf: logf.write("[DEBUG] Skipping pylibdmtx attempt: prerequisites not met.\n")
+            if logf: logf.write("[DEBUG] Skipping pylibdmtx attempt: not available.\n")
+
 
     # Finalize logs section
     if logf:
@@ -167,8 +144,8 @@ async def decode_image(
         logf.write(f"[DEBUG] Final decoded data: {decoded}\n")
         if decoded and logf:
              for i, raw_data in enumerate(decoded):
-                 # --- On logge toujours repr() pour voir le résultat de --raw ---
-                 logf.write(f"[DEBUG] Raw data item {i} from decoder (repr): {repr(raw_data)}\n")
+                 # --- On logge repr() pour voir si zxing-python inclut \x1d ---
+                 logf.write(f"[DEBUG] Raw data item {i} from final decoder (repr): {repr(raw_data)}\n")
         logf.close()
 
     # Supprimer le fichier temporaire
@@ -179,8 +156,8 @@ async def decode_image(
 
     if not decoded:
         detail_msg = "Aucun code-barres détecté dans l'image."
-        if zxing_stderr and decoder_used == DecoderType.NONE:
-             detail_msg += f" (ZXing stderr: {zxing_stderr})"
+        if zxing_error_msg and decoder_used == DecoderType.NONE:
+             detail_msg += f" (ZXing error: {zxing_error_msg})"
         elif decoder_used == DecoderType.NONE:
              detail_msg += " (pylibdmtx a aussi échoué ou n'a rien trouvé)."
         raise HTTPException(status_code=422, detail=detail_msg)
@@ -188,9 +165,8 @@ async def decode_image(
     barcodes_response = []
     for raw in decoded:
         try:
-            # --- Toujours utiliser le parser ORIGINAL pour ce test ---
+            # --- Toujours parser avec le gs1_parser original ---
             parsed_data = parse_gs1(raw, verbose=verbose)
-
             decoder_info_dict = get_decoder_info(raw, decoder_used, verbose=verbose)
             decoder_info_model = DecoderInfo(**decoder_info_dict)
             barcode_item = BarcodeItem(raw=raw, parsed=parsed_data, decoder_info=decoder_info_model)
@@ -200,7 +176,7 @@ async def decode_image(
             if debug and log_file:
                 try:
                     with open(log_file, "a") as err_logf:
-                         err_logf.write(f"[ERROR] Failed to process/parse raw data '{raw}': {e}\n")
+                        err_logf.write(f"[ERROR] Failed to process/parse raw data '{raw}': {e}\n")
                 except: pass
 
     if not barcodes_response:
@@ -226,14 +202,13 @@ async def generate_barcode_image(request: GenerateRequest):
     except NotImplementedError as e: raise HTTPException(status_code=501, detail=f"Fonctionnalité non implémentée: {str(e)}")
     except Exception as e: print(f"Erreur inattendue lors de la génération du code-barres: {e}"); raise HTTPException(status_code=500, detail=f"Erreur interne lors de la génération du code-barres.")
 
-# --- Fonctions de vérification (inchangées) ---
+
+# --- Fonctions de vérification (MODIFIÉES) ---
 def _check_zxing_available():
-    if not shutil.which("java"): return False
-    if not os.path.exists("/zxing/core.jar") or \
-       not os.path.exists("/zxing/javase.jar") or \
-       not os.path.exists("/zxing/jcommander.jar"):
-        return False
-    return True
+    # Vérifie si le wrapper Python a été initialisé et si Java est là
+    # On garde la vérification java au cas où le wrapper en aurait besoin
+    # mais la disponibilité principale est gérée par ZXING_PYTHON_AVAILABLE
+    return ZXING_PYTHON_AVAILABLE and shutil.which("java") is not None
 
 def _check_pylibdmtx_available():
     try:

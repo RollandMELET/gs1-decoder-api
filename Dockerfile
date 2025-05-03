@@ -1,55 +1,39 @@
-# Dockerfile
+# Dockerfile complet (seule la section 3 change)
+
 FROM python:3.10-slim
 
-# --- Définir les versions pour une gestion plus facile ---
 ARG ZXING_VERSION=3.4.1
-ARG JCOMMANDER_VERSION=1.78 # Version compatible et stable
+ARG JCOMMANDER_VERSION=1.78
 
-# 1) Prérequis système : Java, libdmtx, wget et autres dépendances
+# 1) Prérequis système (inchangé)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      # Java Runtime Environment
       default-jre-headless \
-      # Dépendance C pour pylibdmtx
       libdmtx-dev \
-      # Outil pour télécharger les JARs
       wget \
-      # Conservé car présent initialement
       ghostscript \
-      # Conservé car présent initialement
       libmagickwand-dev && \
-    # Nettoyage pour réduire la taille de l'image
     rm -rf /var/lib/apt/lists/*
 
-# 2) Récupération des JARs ZXing (Core, JavaSE) et JCommander nécessaires
+# 2) Récupération des JARs (inchangé - garder les 3 JARs)
 RUN mkdir -p /zxing && \
-    # Téléchargement du JAR ZXing Core
-    wget -q \
-      https://repo1.maven.org/maven2/com/google/zxing/core/${ZXING_VERSION}/core-${ZXING_VERSION}.jar \
-      -O /zxing/core.jar && \
-    # Téléchargement du JAR ZXing JavaSE
-    wget -q \
-      https://repo1.maven.org/maven2/com/google/zxing/javase/${ZXING_VERSION}/javase-${ZXING_VERSION}.jar \
-      -O /zxing/javase.jar && \
-    # Téléchargement du JAR JCommander
-    wget -q \
-      https://repo1.maven.org/maven2/com/beust/jcommander/${JCOMMANDER_VERSION}/jcommander-${JCOMMANDER_VERSION}.jar \
-      -O /zxing/jcommander.jar && \
-    # Vérification optionnelle que les TROIS fichiers sont bien présents
+    wget -q https://repo1.maven.org/maven2/com/google/zxing/core/${ZXING_VERSION}/core-${ZXING_VERSION}.jar -O /zxing/core.jar && \
+    wget -q https://repo1.maven.org/maven2/com/google/zxing/javase/${ZXING_VERSION}/javase-${ZXING_VERSION}.jar -O /zxing/javase.jar && \
+    wget -q https://repo1.maven.org/maven2/com/beust/jcommander/${JCOMMANDER_VERSION}/jcommander-${JCOMMANDER_VERSION}.jar -O /zxing/jcommander.jar && \
     ls -l /zxing
 
 WORKDIR /app
 
-# 3) Dépendances Python
+# 3) Dépendances Python (MODIFIÉ)
 COPY requirements.txt .
-# Utilisation de --no-cache-dir pour potentiellement réduire la taille
+# pip install installe maintenant aussi zxing-python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 4) Code source de l'application
+# 4) Code source (inchangé)
 COPY . /app
 
-# Port exposé par l'application FastAPI/Uvicorn
+# 5) Port (inchangé)
 EXPOSE 8000
 
-# 5) Commande de lancement de l'application
+# 6) Commande de lancement (inchangé)
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
