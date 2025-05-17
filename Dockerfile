@@ -1,6 +1,10 @@
 # Dockerfile pour JPype (syntaxe commentaires corrigée)
 FROM python:3.10-slim
 
+# ---- AJOUT TRIVIAL POUR FORCER REBUILD ----
+ENV FORCE_REBUILD_TIMESTAMP=20240517141500 
+# ---- FIN AJOUT ----
+
 ARG ZXING_VERSION=3.4.1
 # JCOMMANDER_VERSION n'est plus nécessaire
 
