@@ -21,48 +21,94 @@ Microservice pour décoder et générer des codes-barres GS1 (1D/2D), avec parsi
 
 ## 🔥 API Endpoints
 
-| Méthode | URL          | Description                  |
-|:--------|:-------------|:-----------------------------|
-| GET     | `/health`    | Vérifie que le service tourne |
-| POST    | `/decode/`   | Envoie une image, décode et parse |
-| POST    | `/parse/`    | Envoie une chaîne brute, parse |
-| POST    | `/generate/` | Génère un code-barres GS1 |
-
-**POST `/decode/` paramètres (form-data)** :
-- `file` : fichier image (obligatoire)
-- `verbose` : booléen optionnel (`true` ou `false`)
-
-**POST `/parse/` paramètres (JSON Body)** :
-- `raw_data` : chaîne de caractères brute du code-barres (obligatoire)
-- `barcode_format` : chaîne de caractères (ex: "GS1 DataMatrix") (optionnel)
-
-**POST `/generate/` paramètres (JSON Body)** :
-- `data` : données GS1 à encoder (ex: "01034531200000111719112510ABCD1234")
-- `format` : format du code-barres (datamatrix, qrcode, code128, gs1-datamatrix, gs1-qrcode, gs1-128)
-- `image_format` : format de l'image (png, jpeg, svg)
-- `width` : largeur de l'image (50-1000 pixels)
-- `height` : hauteur de l'image (50-1000 pixels)
+| Méthode | URL          | Description                                                    |
+| :------ | :----------- | :------------------------------------------------------------- |
+| GET     | `/health`    | Vérifie l'état de santé et les capacités du service.           |
+| POST    | `/decode/`   | Décode les codes-barres depuis une image et parse les données. |
+| POST    | `/parse/`    | Parse une chaîne de caractères GS1 brute (déjà décodée).       |
+| POST    | `/generate/` | Génère une image de code-barres à partir de données GS1.       |
 
 ---
 
-## 📚 Exemples cURL
+## 📚 Documentation Interactive (Aide)
 
-### Décodage de code-barres (Image)
+L'API fournit une documentation complète et interactive, générée automatiquement. Pour explorer tous les points d'entrée, leurs paramètres et tester l'API directement depuis votre navigateur, utilisez les liens suivants :
 
-**Scan simple**
+- **Swagger UI (recommandé pour tester) :** [https://gs1-decoder-api.rorworld.eu/docs](https://gs1-decoder-api.rorworld.eu/docs)
+- **ReDoc (recommandé pour lire la documentation) :** [https://gs1-decoder-api.rorworld.eu/redoc](https://gs1-decoder-api.rorworld.eu/redoc)
+
+---
+
+## 🛠️ Exemples d'Utilisation (cURL)
+
+Voici un exemple pour chaque endpoint principal.
+
+### 1. Vérifier l'état du service (`/health`)
+
+Cette commande vérifie que l'API est en ligne et retourne ses capacités actuelles.
+
 ```bash
-curl -X POST https://gs1-decoder-api.rorworld.eu/decode/ \
-  -F "file=@/path/to/your/imagetest.jpg" \
+curl https://gs1-decoder-api.rorworld.eu/health
+```
+
+**Résultat attendu :**
+```json
+{
+  "status": "OK",
+  "capabilities": {
+    "decoders": { "zxing_jpype": true, "pylibdmtx": true },
+    "supported_codes": ["DataMatrix", "QR Code", "Code 128", "GS1-128", "GS1 DataMatrix", "GS1 QR Code"],
+    "api_version": "1.3.0",
+    "features": { "decode": true, "generate": true, "parse": true }
+  }
+}
+```
+
+### 2. Décoder un code-barres depuis une image (`/decode`)
+
+Envoyez un fichier image pour en extraire les données de code-barres.
+
+**Paramètres (form-data)** :
+- `file` : fichier image (obligatoire)
+- `verbose`: `true` ou `false` (optionnel)
+
+```bash
+curl -X POST "https://gs1-decoder-api.rorworld.eu/decode/" \
+  -F "file=@/chemin/vers/votre/image.jpg" \
   -F "verbose=false"
 ```
 
-### Parsing de données brutes (Texte)
+**Résultat attendu :**
+```json
+{
+  "success": true,
+  "barcodes": [
+    {
+      "raw": "010376042319000517250423...",
+      "parsed": {
+        "GTIN": "03760423190005",
+        "EXPIRY": "2025-04-23"
+      },
+      "decoder_info": {
+        "decoder": "ZXing (JPype)",
+        "format": "GS1 DataMatrix"
+      }
+    }
+  ]
+}
+```
 
-**Parse simple**
+### 3. Parser une chaîne de caractères brute (`/parse`)
+
+Envoyez une chaîne de caractères déjà décodée pour obtenir une analyse GS1 détaillée.
+
+**Paramètres (JSON Body)** :
+- `raw_data` : chaîne de caractères (obligatoire)
+- `barcode_format`: nom du format (optionnel)
+
 ```bash
 curl -X 'POST' \
   'https://gs1-decoder-api.rorworld.eu/parse/' \
-  -H 'accept: application/json' \
   -H 'Content-Type: application/json' \
   -d '{
     "raw_data": "01037604231900051725042310AB-123\u001d21S12345",
@@ -70,7 +116,7 @@ curl -X 'POST' \
   }'
 ```
 
-**Résultat attendu pour `/parse/`**
+**Résultat attendu (toujours en mode verbose) :**
 ```json
 {
   "success": true,
@@ -87,35 +133,34 @@ curl -X 'POST' \
         "decoder": "Text Input",
         "format": "GS1 DataMatrix",
         "is_gs1": true,
-        "confidence": 1.0,
-        "characteristics": {
-          "length": 42,
-          "content_type": "alphanumeric",
-          "contains_special_chars": true,
-          "contains_fnc1": true,
-          "potential_leading_ais": ["01", "17", "10", "21"]
-        }
+        "confidence": 1.0
       }
     }
   ]
 }
 ```
 
-### Génération de code-barres
+### 4. Générer un code-barres (`/generate`)
 
-**Générer un DataMatrix GS1**
+Créez une image de code-barres à partir de données GS1.
+
+**Paramètres (JSON Body)** :
+- `data`: données GS1 à encoder
+- `format`: `gs1-datamatrix`, `gs1-qrcode`, `gs1-128`, etc.
+- `image_format`: `png`, `jpeg`
+
 ```bash
-curl -X POST https://gs1-decoder-api.rorworld.eu/generate/ \
+curl -X POST "https://gs1-decoder-api.rorworld.eu/generate/" \
   -H "Content-Type: application/json" \
   -d '{
     "data": "01034531200000111719112510ABCD1234",
     "format": "gs1-datamatrix",
-    "image_format": "png",
-    "width": 300,
-    "height": 300
+    "image_format": "png"
   }' \
   --output barcode.png
 ```
+**Résultat attendu :**
+Le fichier `barcode.png` sera sauvegardé dans votre répertoire courant.
 
 ---
 
