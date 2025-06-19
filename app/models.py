@@ -12,18 +12,16 @@ class DecoderInfo(BaseModel):
     confidence: Optional[float] = None
     characteristics: Optional[Dict[str, Any]] = None
 
-# --- NOUVEAU: Classe pour la structure parsée en mode verbose ---
 class ParsedVerboseItem(BaseModel):
     """Structure d'un élément AI parsé en mode verbose."""
     ai: str
     name: str
     value: str
-    valid: bool # Accepte explicitement un booléen
+    valid: bool
 
 class BarcodeItem(BaseModel):
     """Représentation d'un code-barres décodé avec métadonnées."""
     raw: str
-    # --- MODIFIÉ: Utilise ParsedVerboseItem dans l'Union ---
     parsed: Union[Dict[str, str], List[ParsedVerboseItem]]
     decoder_info: DecoderInfo
 
@@ -45,9 +43,9 @@ class DecoderCapabilities(BaseModel):
 class HealthResponse(BaseModel):
     """Réponse de l'API pour l'endpoint de santé."""
     status: str
-    capabilities: Dict[str, Any] # Gardé Any ici, car le contenu est variable
+    capabilities: Dict[str, Any]
 
-# Modèles pour la génération de codes-barres
+# --- Modèles pour la génération de codes-barres ---
 
 class BarcodeFormat(str, Enum):
     """Formats de codes-barres pris en charge pour la génération."""
@@ -72,13 +70,17 @@ class GenerateRequest(BaseModel):
     width: int = Field(default=300, ge=50, le=1000, description="Largeur de l'image en pixels")
     height: int = Field(default=300, ge=50, le=1000, description="Hauteur de l'image en pixels")
 
-# GenerateResponse n'existe pas dans le code original, mais serait utile
-# Si vous voulez un retour structuré pour la génération au lieu de l'image directe
-# class GenerateResponse(BaseModel):
-#     """Réponse pour la génération réussie d'un code-barres."""
-#     success: bool
-#     format: BarcodeFormat
-#     image_url: Optional[str] = None # Ou image_data: bytes
-#     data: str
 
-# --- FIN DU FICHIER models.py ---
+# <--- AJOUT: Nouveaux modèles pour l'endpoint /parse/ --- >
+class ParseRequest(BaseModel):
+    """Requête pour l'endpoint de parsing de données brutes."""
+    raw_data: str = Field(..., description="La chaîne de caractères brute issue du décodage du code-barres, incluant les potentiels caractères FNC1/GS.")
+    barcode_format: Optional[str] = Field(None, description="Format optionnel du code-barres d'origine (ex: 'GS1 DataMatrix', 'QR_CODE'). Aide à la classification.")
+
+class ParseResponse(BaseModel):
+    """Réponse pour l'endpoint de parsing."""
+    success: bool
+    barcodes: List[BarcodeItem]
+
+
+# --- END OF FILE models.py ---

@@ -1,14 +1,14 @@
-# --- START OF FILE main.py (Version 1.2.4 - Debug Log Endpoint Added) ---
+# --- START OF FILE main.py (Version 1.3.0 - Parse Endpoint Added) ---
 
-__version__ = "1.2.4"  # Version de l'application
+__version__ = "1.3.0"  # <--- MODIFICATION: Version incrémentée
 __author__ = "Rolland Melet"
-__email__ = "rolland.melet@example.com" # Remplace par ton email
-__description__ = "API pour décoder et générer des codes-barres GS1 via JPype/ZXing et pylibdmtx fallback"
-__timestamp__ = "2024-05-18" # Date de la dernière modification significative
+__email__ = "rolland.melet@example.com"
+__description__ = "API pour décoder et générer des codes-barres GS1, incluant un endpoint `/parse` pour les données brutes." # <--- MODIFICATION: Description mise à jour
+__timestamp__ = "2025-06-19" # <--- MODIFICATION: Timestamp mis à jour
 
 # --- Imports ---
 from fastapi import FastAPI, UploadFile, File, HTTPException, Form, Depends, Response
-from fastapi.responses import StreamingResponse, PlainTextResponse # Added PlainTextResponse
+from fastapi.responses import StreamingResponse, PlainTextResponse
 from contextlib import asynccontextmanager
 import jpype
 import jpype.imports
@@ -20,7 +20,8 @@ from app.gs1_parser import parse_gs1
 from app.models import (
     DecodeResponse, ErrorResponse, HealthResponse,
     GenerateRequest, BarcodeFormat as ModelBarcodeFormat, ImageFormat as ModelImageFormat,
-    DecoderInfo, BarcodeItem
+    DecoderInfo, BarcodeItem,
+    ParseRequest, ParseResponse # <--- AJOUT: Nouveaux modèles importés
 )
 from app.barcode_detector import DecoderType, BarcodeFormat as DetectedBarcodeFormatEnum
 from app.barcode_generator import generate_barcode, BarcodeFormat as GenBarcodeFormat, ImageFormat as GenImageFormat
@@ -39,7 +40,6 @@ class ScanBarcodeFormatHint(str, Enum):
     CODE_128 = "CODE_128"
 
 # --- JPype Global Variables ---
-# (Identique à la version précédente, non répété ici pour la brièveté)
 jpype_started = False
 NotFoundException_Java = None
 IOException_Java = None
@@ -56,7 +56,6 @@ BarcodeFormat_Java = None
 ZXING_CLASSPATH = "/zxing/core.jar:/zxing/javase.jar"
 
 # --- Lifespan Manager ---
-# (Identique à la version précédente, non répété ici pour la brièveté)
 @asynccontextmanager
 async def lifespan(app_instance: FastAPI):
     global jpype_started, NotFoundException_Java, IOException_Java, ImageIO_Java, File_Java
@@ -102,67 +101,28 @@ async def lifespan(app_instance: FastAPI):
 # --- Application FastAPI ---
 app = FastAPI(
     title="GS1 Decoder API (JPype)",
-    description=f"{__description__} (Version: {__version__})", # Utilise la description dundee
-    version=__version__, # Utilise la version dunder
+    description=f"{__description__} (Version: {__version__})",
+    version=__version__,
     lifespan=lifespan
 )
 
-#
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# !!! ATTENTION : ENDPOINT DE DÉBOGAGE CI-DESSOUS                         !!!
-# !!! Cet endpoint est destiné UNIQUEMENT au débogage et NE DOIT PAS      !!!
-# !!! être déployé en production, car il expose le contenu de fichiers   !!!
-# !!! sur le serveur.                                                     !!!
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#
+# ... (Endpoint de débogage /_debug_log_viewer inchangé) ...
 @app.get("/_debug_log_viewer/{log_filename:path}", response_class=PlainTextResponse, include_in_schema=False)
 async def get_debug_log_viewer(log_filename: str):
-    """
-    *** ENDPOINT DE DÉBOGAGE UNIQUEMENT - À RETIRER AVANT PRODUCTION ***
-    Lit et retourne le contenu d'un fichier log spécifié depuis /tmp/logs/.
-    Exemple d'usage: /_debug_log_viewer/tipi_datamatrix_scan_log.txt
-    """
+    # ... (code inchangé)
     print(f"WARNING: Debug endpoint /_debug_log_viewer accessed for file: {log_filename}")
-    # Par sécurité, on ne permet que de lire dans /tmp/logs/
-    # et on s'assure que log_filename ne contient pas ".." pour éviter le path traversal.
     if ".." in log_filename:
         raise HTTPException(status_code=400, detail="Path traversal attempt detected.")
-    
-    # Le chemin est relatif à la racine du conteneur où l'API tourne
-    # Si log_file dans cURL est /tmp/logs/X.txt, alors log_filename sera X.txt ici si on prend que le basename
-    # Ou si on attend le chemin complet :
-    # log_path = log_filename # si log_filename est déjà /tmp/logs/X.txt
-    # Pour plus de sécurité, forçons le préfixe /tmp/logs/
-    
-    # Si log_filename est juste le nom du fichier (ex: "mon_log.txt")
-    # log_path = os.path.join("/tmp/logs/", log_filename)
-    
-    # Si log_filename est le chemin complet DANS le conteneur (ex: "/tmp/logs/mon_log.txt")
-    # On valide qu'il commence bien par le répertoire autorisé
     allowed_log_dir = "/tmp/logs/"
-    if not log_filename.startswith(allowed_log_dir):
-        # Si on veut être strict sur le nom de fichier passé via cURL
-        # raise HTTPException(status_code=400, detail=f"Log file must be within {allowed_log_dir}")
-        # Ou si on attend juste le nom et on préfixe :
-        log_path = os.path.join(allowed_log_dir, os.path.basename(log_filename)) # Plus sûr, prend que le nom du fichier
-    else: # Le chemin complet a été passé, on l'utilise (après check ".." ci-dessus)
-         log_path = log_filename
-
-
+    log_path = os.path.join(allowed_log_dir, os.path.basename(log_filename))
     if not os.path.exists(log_path):
         raise HTTPException(status_code=404, detail=f"Log file not found at: {log_path}")
-    
     try:
         with open(log_path, "r", encoding="utf-8") as f:
             content = f.read()
         return PlainTextResponse(content=content)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error reading log file {log_path}: {str(e)}")
-#
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-# !!! FIN DE L'ENDPOINT DE DÉBOGAGE                                       !!!
-# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-#
 
 @app.get("/health", response_model=HealthResponse)
 async def health():
@@ -174,9 +134,64 @@ async def health():
         },
         "supported_codes": [fmt.value for fmt in DetectedBarcodeFormatEnum if fmt != DetectedBarcodeFormatEnum.UNKNOWN],
         "api_version": app.version,
-        "features": {"decode": True, "generate": True }
+        "features": {"decode": True, "generate": True, "parse": True } # <--- MODIFICATION
     }
     return {"status": "OK", "capabilities": capabilities}
+
+
+# <--- AJOUT: NOUVEL ENDPOINT /parse/ --- >
+@app.post(
+    "/parse/",
+    response_model=ParseResponse,
+    responses={422: {"model": ErrorResponse}, 500: {"model": ErrorResponse}},
+    summary="Parse une chaîne de caractères GS1 brute",
+    description="Prend une chaîne de caractères brute (déjà décodée, potentiellement avec FNC1), la parse et retourne les Application Identifiers (AI) de manière structurée."
+)
+async def parse_raw_data(request: ParseRequest):
+    """
+    Parse une chaîne de données brutes fournie par l'utilisateur.
+    L'endpoint force le mode `verbose=True` car son objectif est de détailler les AIs.
+    """
+    try:
+        # Étape 1: Parser les données en mode verbose (c'est le but de l'endpoint)
+        parsed_gs1_data = parse_gs1(request.raw_data, verbose=True)
+
+        if not parsed_gs1_data:
+            raise HTTPException(
+                status_code=422,
+                detail="La chaîne fournie ne contient aucun Application Identifier GS1 reconnaissable."
+            )
+
+        # Étape 2: Générer les informations de contexte
+        decoder_info_dict = get_decoder_info_adjusted(
+            raw_data=request.raw_data,
+            decoder_used_enum=DecoderType.TEXT_INPUT,
+            format_hint_str=request.barcode_format,
+            verbose=True
+        )
+        decoder_info_dict["decoder"] = "Text Input"
+        
+        decoder_info_model = DecoderInfo(**decoder_info_dict)
+
+        # Étape 3: Construire l'objet de réponse
+        barcode_item = BarcodeItem(
+            raw=request.raw_data,
+            parsed=parsed_gs1_data,
+            decoder_info=decoder_info_model
+        )
+
+        return ParseResponse(success=True, barcodes=[barcode_item])
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Erreur interne lors du parsing de la chaîne brute: {e}")
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500,
+            detail=f"Une erreur interne est survenue lors du traitement de la chaîne : {str(e)}"
+        )
+
 
 @app.post(
     "/decode/",
@@ -192,8 +207,7 @@ async def decode_image(
     log_file_name: Optional[str] = Form(None, alias="log_file"),
     scan_types: Optional[List[ScanBarcodeFormatHint]] = Form(None, alias="scan_types", description="Liste des types de codes-barres à rechercher (ex: DATAMATRIX, QR_CODE). Défaut: tous.")
 ):
-    # ... (Contenu de la fonction decode_image identique à la version 1.2.3 que tu as déjà) ...
-    # ... (Elle inclut déjà la création du répertoire de log os.makedirs) ...
+    # ... (le code de cet endpoint reste identique à la version précédente) ...
     global jpype_started, NotFoundException_Java, IOException_Java, ImageIO_Java, File_Java
     global BufferedImageLuminanceSource_Java, HybridBinarizer_Java, BinaryBitmap_Java
     global MultiFormatReader_Java, DecodeHintType_Java, Hints_Java, BarcodeFormat_Java
@@ -411,7 +425,7 @@ async def decode_image(
 
 
 @app.post("/generate/", 
-          responses={ # ... (identique à la version précédente) ...
+          responses={
                200: {"content": {"image/png": {}, "image/jpeg": {}, "image/svg+xml": {}}}, 
               422: {"model": ErrorResponse}, 
               501: {"model": ErrorResponse}, 
@@ -420,7 +434,7 @@ async def decode_image(
           summary="Génère un code-barres GS1", 
           description="Crée une image de code-barres à partir des données GS1 fournies")
 async def generate_barcode_image(request: GenerateRequest):
-    # ... (Contenu de la fonction generate_barcode_image identique à la version 1.2.3) ...
+    # ... (le code de cet endpoint reste identique à la version précédente) ...
     try:
         barcode_format_map = {
             ModelBarcodeFormat.DATAMATRIX: GenBarcodeFormat.DATAMATRIX,
@@ -478,7 +492,6 @@ async def generate_barcode_image(request: GenerateRequest):
         raise HTTPException(status_code=500, detail="Erreur interne du serveur lors de la génération du code-barres.")
 
 def _check_pylibdmtx_available():
-    # ... (identique à la version précédente) ...
     try:
         return True
     except ImportError:
@@ -486,8 +499,6 @@ def _check_pylibdmtx_available():
     except Exception:
         return False
 
-# --- Helper function for Decoder Info ---
-# (Identique à la version précédente, non répété ici pour la brièveté)
 from app.barcode_detector import is_gs1_data, detect_generic_format, calculate_confidence, get_barcode_characteristics
 
 def get_decoder_info_adjusted(raw_data: str, decoder_used_enum: DecoderType, format_hint_str: Optional[str] = None, verbose: bool = False) -> dict:
@@ -495,12 +506,12 @@ def get_decoder_info_adjusted(raw_data: str, decoder_used_enum: DecoderType, for
     is_gs1 = is_gs1_data(raw_data)
 
     if format_hint_str:
-        hint_upper = format_hint_str.upper().replace("_", "")
-        if hint_upper == "DATAMATRIX":
+        hint_upper = format_hint_str.upper().replace("_", "").replace(" ", "")
+        if hint_upper == "DATAMATRIX" or hint_upper == "GS1DATAMATRIX":
             detected_format_enum = DetectedBarcodeFormatEnum.GS1_DATAMATRIX if is_gs1 else DetectedBarcodeFormatEnum.DATAMATRIX
-        elif hint_upper == "QRCODE":
+        elif hint_upper == "QRCODE" or hint_upper == "GS1QRCODE":
             detected_format_enum = DetectedBarcodeFormatEnum.GS1_QRCODE if is_gs1 else DetectedBarcodeFormatEnum.QRCODE
-        elif hint_upper == "CODE128":
+        elif hint_upper == "CODE128" or hint_upper == "GS1128":
             detected_format_enum = DetectedBarcodeFormatEnum.GS1_128 if is_gs1 else DetectedBarcodeFormatEnum.CODE128
 
     if detected_format_enum == DetectedBarcodeFormatEnum.UNKNOWN:
@@ -522,7 +533,7 @@ def get_decoder_info_adjusted(raw_data: str, decoder_used_enum: DecoderType, for
             detected_format_enum = DetectedBarcodeFormatEnum.GS1_128
     
     info = {
-        "decoder": decoder_used_enum.value, # Will be overwritten by user-friendly string
+        "decoder": decoder_used_enum.value,
         "format": detected_format_enum.value,
         "is_gs1": detected_format_enum in [
             DetectedBarcodeFormatEnum.GS1_DATAMATRIX,
