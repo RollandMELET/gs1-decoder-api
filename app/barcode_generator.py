@@ -235,27 +235,48 @@ def generate_datamatrix(data, size=(5, 5), is_gs1=False):
     Args:
         data (str): Données à encoder
         size (tuple): Taille en mm (largeur, hauteur)
-        is_gs1 (bool): Si True, ajoute le caractère FNC1 au début pour GS1 DataMatrix
+        is_gs1 (bool): Si True, utilise les options spéciales pour GS1 DataMatrix
 
     Returns:
         PIL.Image: Image du code DataMatrix
     """
-    # Pour GS1 DataMatrix, ajouter explicitement le caractère FNC1 au début
     if is_gs1:
-        # Le caractère FNC1 en DataMatrix est représenté par le byte 232 (0xE8)
-        fnc1_char = chr(232)  # Caractère FNC1 pour DataMatrix
-        data = fnc1_char + data
-        print(f"[DEBUG] Ajout FNC1 pour GS1 DataMatrix: {repr(data)}")
+        print(f"[DEBUG] Génération GS1 DataMatrix avec données: {repr(data[:50])}...")
 
-    # Encoder en bytes pour pylibdmtx
-    encoded_data = data.encode('latin-1')  # latin-1 pour supporter le caractère 232
+        # Essayons plusieurs approches pour le GS1 DataMatrix
+        approaches = [
+            # Approche 1: Utiliser le préfixe ]d2 (format GS1)
+            ("]d2" + data, "utf-8", "Format ]d2"),
 
-    # Générer l'image
+            # Approche 2: Utiliser le byte 29 comme FNC1
+            (chr(29) + data, "utf-8", "FNC1 chr(29)"),
+
+            # Approche 3: Données brutes avec encodage spécial
+            (data, "utf-8", "Données brutes"),
+        ]
+
+        for approach_data, encoding, description in approaches:
+            try:
+                print(f"[DEBUG] Tentative: {description}")
+                encoded_data = approach_data.encode(encoding)
+                img_data = dmtx.encode(encoded_data)
+
+                if img_data:
+                    print(f"[DEBUG] Succès avec {description}")
+                    img = Image.frombytes('RGB', (img_data.width, img_data.height), img_data.pixels)
+                    return img
+
+            except Exception as e:
+                print(f"[DEBUG] Échec {description}: {e}")
+                continue
+
+        # Si aucune approche spéciale ne fonctionne, utiliser les données normales
+        print("[DEBUG] Fallback vers DataMatrix standard")
+
+    # Encodage standard
+    encoded_data = data.encode('utf-8')
     img_data = dmtx.encode(encoded_data)
-
-    # Convertir en image PIL
     img = Image.frombytes('RGB', (img_data.width, img_data.height), img_data.pixels)
-
     return img
 
 def generate_qrcode(data, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=10, border=4):
@@ -331,10 +352,9 @@ def generate_barcode_with_treepoem(data, barcode_format):
     # Options spécifiques pour certains formats
     options = {}
     if barcode_format == BarcodeFormat.GS1_DATAMATRIX:
-        # Pour GS1 DataMatrix, s'assurer que le FNC1 est présent au début
-        if not data.startswith(chr(232)):
-            data = chr(232) + data
-            print(f"[DEBUG] Treepoem: Ajout FNC1 pour GS1 DataMatrix: {repr(data[:10])}...")
+        # Pour GS1 DataMatrix avec treepoem, essayer différentes approches
+        print(f"[DEBUG] Treepoem: GS1 DataMatrix avec données: {repr(data[:30])}...")
+        # Treepoem pourrait gérer automatiquement le GS1
     elif barcode_format in [BarcodeFormat.GS1_QRCODE, BarcodeFormat.GS1_128]:
         options["includetext"] = "true"
         options["includecheckintext"] = "true"
