@@ -228,22 +228,18 @@ def _parse_raw_gs1_data(data):
 
     return formatted
 
-def generate_datamatrix(data, size=(5, 5), is_gs1=False):
+def generate_datamatrix(data, size=(5, 5)):
     """
     Génère un code DataMatrix.
 
     Args:
         data (str): Données à encoder
         size (tuple): Taille en mm (largeur, hauteur)
-        is_gs1 (bool): Si True, tente d'optimiser pour GS1
 
     Returns:
         PIL.Image: Image du code DataMatrix
     """
-    if is_gs1:
-        print(f"[DEBUG] Génération GS1 DataMatrix: {repr(data[:30])}...")
-
-    # Encoder en bytes pour pylibdmtx (simple et robuste)
+    # Encoder en bytes pour pylibdmtx
     encoded_data = data.encode('utf-8')
 
     # Générer l'image
@@ -383,12 +379,8 @@ def generate_barcode(data, barcode_format=BarcodeFormat.DATAMATRIX, image_format
     
     # Utiliser les générateurs spécifiques
     if not use_treepoem or not TREEPOEM_AVAILABLE:
-        if barcode_format == BarcodeFormat.GS1_DATAMATRIX:
-            # Générer un vrai GS1 DataMatrix avec FNC1
-            img = generate_datamatrix(formatted_data, is_gs1=True)
-        elif barcode_format == BarcodeFormat.DATAMATRIX:
-            # DataMatrix standard sans FNC1
-            img = generate_datamatrix(formatted_data, is_gs1=False)
+        if barcode_format in [BarcodeFormat.DATAMATRIX, BarcodeFormat.GS1_DATAMATRIX]:
+            img = generate_datamatrix(formatted_data)
         elif barcode_format in [BarcodeFormat.QRCODE, BarcodeFormat.GS1_QRCODE]:
             img = generate_qrcode(formatted_data)
         elif barcode_format in [BarcodeFormat.CODE128, BarcodeFormat.GS1_128]:
