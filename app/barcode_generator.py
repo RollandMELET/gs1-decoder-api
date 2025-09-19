@@ -330,41 +330,22 @@ def generate_gs1_datamatrix_treepoem(data, **kwargs):
 
     print(f"[DEBUG] treepoem: Génération GS1 DataMatrix avec données: {repr(data[:50])}...")
 
-    # Tentative 1: Format GS1 DataMatrix dédié
+    # CORRECTION: Utiliser gs1datamatrix avec parsefnc (CRITIQUE selon la note)
     try:
+        # Cette approche utilise EXACTEMENT ce que recommande la note technique
         img = treepoem.generate_barcode(
             barcode_type='gs1datamatrix',
             data=data,
-            options={'version': 'auto'}
-        )
-        print("[DEBUG] treepoem: Succès avec gs1datamatrix")
-        return img.convert('RGB')
-    except Exception as e:
-        print(f"[DEBUG] treepoem: gs1datamatrix échoué: {e}")
-
-    # Tentative 2: DataMatrix avec options GS1
-    try:
-        img = treepoem.generate_barcode(
-            barcode_type='datamatrix',
-            data=data,
             options={
-                'version': 'auto',
-                'gs1': 'true'
+                'parsefnc': True,      # CRITIQUE: Parse les AI et gère FNC1 automatiquement
+                'version': 'auto'      # Taille automatique
             }
         )
-        print("[DEBUG] treepoem: Succès avec datamatrix + gs1")
+        print("[DEBUG] treepoem: Succès GS1 DataMatrix avec parsefnc=True")
         return img.convert('RGB')
     except Exception as e:
-        print(f"[DEBUG] treepoem: datamatrix+gs1 échoué: {e}")
-
-    # Tentative 3: DataMatrix standard (fallback)
-    img = treepoem.generate_barcode(
-        barcode_type='datamatrix',
-        data=data,
-        options={'version': 'auto'}
-    )
-    print("[DEBUG] treepoem: Fallback datamatrix standard")
-    return img.convert('RGB')
+        print(f"[DEBUG] treepoem: gs1datamatrix+parsefnc échoué: {e}")
+        raise e  # Ne pas faire de fallback - on veut du vrai GS1
 
 def generate_gs1_datamatrix_zint(data, **kwargs):
     """
@@ -478,16 +459,9 @@ def generate_gs1_datamatrix_hybrid(data, **kwargs):
             errors.append(f"dmtxwrite: {e}")
             print(f"[DEBUG] dmtxwrite échoué: {e}")
 
-    # Fallback: pylibdmtx standard (actuel)
-    try:
-        print("[DEBUG] Fallback vers pylibdmtx DataMatrix standard")
-        return generate_datamatrix(data)
-    except Exception as e:
-        errors.append(f"pylibdmtx: {e}")
-        print(f"[DEBUG] pylibdmtx échoué: {e}")
-
-    # Erreur si tout échoue
-    raise Exception(f"Tous les générateurs GS1 DataMatrix ont échoué: {errors}")
+    # PAS de fallback pylibdmtx pour GS1 - il ne peut pas générer de vrai GS1 DataMatrix
+    # Erreur si tous les générateurs GS1 spécialisés échouent
+    raise Exception(f"Tous les générateurs GS1 DataMatrix spécialisés ont échoué: {errors}. pylibdmtx ne peut pas générer de vrai GS1 DataMatrix (pas de FNC1).")
 
 def generate_barcode_with_treepoem(data, barcode_format):
     """
