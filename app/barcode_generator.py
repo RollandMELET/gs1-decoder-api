@@ -228,26 +228,34 @@ def _parse_raw_gs1_data(data):
 
     return formatted
 
-def generate_datamatrix(data, size=(5, 5)):
+def generate_datamatrix(data, size=(5, 5), is_gs1=False):
     """
     Génère un code DataMatrix.
-    
+
     Args:
         data (str): Données à encoder
         size (tuple): Taille en mm (largeur, hauteur)
-        
+        is_gs1 (bool): Si True, ajoute le caractère FNC1 au début pour GS1 DataMatrix
+
     Returns:
         PIL.Image: Image du code DataMatrix
     """
+    # Pour GS1 DataMatrix, ajouter explicitement le caractère FNC1 au début
+    if is_gs1:
+        # Le caractère FNC1 en DataMatrix est représenté par le byte 232 (0xE8)
+        fnc1_char = chr(232)  # Caractère FNC1 pour DataMatrix
+        data = fnc1_char + data
+        print(f"[DEBUG] Ajout FNC1 pour GS1 DataMatrix: {repr(data)}")
+
     # Encoder en bytes pour pylibdmtx
-    encoded_data = data.encode('utf-8')
-    
+    encoded_data = data.encode('latin-1')  # latin-1 pour supporter le caractère 232
+
     # Générer l'image
     img_data = dmtx.encode(encoded_data)
-    
+
     # Convertir en image PIL
     img = Image.frombytes('RGB', (img_data.width, img_data.height), img_data.pixels)
-    
+
     return img
 
 def generate_qrcode(data, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=10, border=4):
@@ -314,15 +322,20 @@ def generate_barcode_with_treepoem(data, barcode_format):
         BarcodeFormat.QRCODE: "qrcode",
         BarcodeFormat.CODE128: "code128",
         BarcodeFormat.GS1_128: "gs1-128",
-        BarcodeFormat.GS1_DATAMATRIX: "datamatrix",
+        BarcodeFormat.GS1_DATAMATRIX: "datamatrix",  # DataMatrix avec données GS1
         BarcodeFormat.GS1_QRCODE: "qrcode",
     }
-    
+
     treepoem_type = format_map.get(barcode_format, "code128")
-    
+
     # Options spécifiques pour certains formats
     options = {}
-    if barcode_format in [BarcodeFormat.GS1_DATAMATRIX, BarcodeFormat.GS1_QRCODE, BarcodeFormat.GS1_128]:
+    if barcode_format == BarcodeFormat.GS1_DATAMATRIX:
+        # Pour GS1 DataMatrix, s'assurer que le FNC1 est présent au début
+        if not data.startswith(chr(232)):
+            data = chr(232) + data
+            print(f"[DEBUG] Treepoem: Ajout FNC1 pour GS1 DataMatrix: {repr(data[:10])}...")
+    elif barcode_format in [BarcodeFormat.GS1_QRCODE, BarcodeFormat.GS1_128]:
         options["includetext"] = "true"
         options["includecheckintext"] = "true"
     
@@ -375,8 +388,12 @@ def generate_barcode(data, barcode_format=BarcodeFormat.DATAMATRIX, image_format
     
     # Utiliser les générateurs spécifiques
     if not use_treepoem or not TREEPOEM_AVAILABLE:
-        if barcode_format in [BarcodeFormat.DATAMATRIX, BarcodeFormat.GS1_DATAMATRIX]:
-            img = generate_datamatrix(formatted_data)
+        if barcode_format == BarcodeFormat.GS1_DATAMATRIX:
+            # Générer un vrai GS1 DataMatrix avec FNC1
+            img = generate_datamatrix(formatted_data, is_gs1=True)
+        elif barcode_format == BarcodeFormat.DATAMATRIX:
+            # DataMatrix standard sans FNC1
+            img = generate_datamatrix(formatted_data, is_gs1=False)
         elif barcode_format in [BarcodeFormat.QRCODE, BarcodeFormat.GS1_QRCODE]:
             img = generate_qrcode(formatted_data)
         elif barcode_format in [BarcodeFormat.CODE128, BarcodeFormat.GS1_128]:
