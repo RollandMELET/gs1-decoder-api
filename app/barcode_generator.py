@@ -658,28 +658,17 @@ def generate_barcode(data, barcode_format=BarcodeFormat.DATAMATRIX, image_format
             print(f"Treepoem error: {e}, using specific generators")
             use_treepoem = False
     
-    # Utiliser les générateurs spécifiques avec architecture hybride
+    # Utiliser les générateurs spécifiques avec architecture hybride CORRIGÉE
     if not use_treepoem or not TREEPOEM_AVAILABLE:
         if barcode_format == BarcodeFormat.GS1_DATAMATRIX:
-            # FORCE treepoem pour GS1 DataMatrix avec parsefnc
-            if TREEPOEM_AVAILABLE:
-                print("[DEBUG] Force treepoem pour GS1 DataMatrix")
-                try:
-                    img = treepoem.generate_barcode(
-                        barcode_type='gs1datamatrix',
-                        data=formatted_data,
-                        options={
-                            'parsefnc': True,      # CRITIQUE pour FNC1
-                            'version': 'auto'
-                        }
-                    )
-                    print("[DEBUG] SUCCESS: treepoem GS1 DataMatrix avec parsefnc")
-                    img = img.convert('RGB')
-                except Exception as e:
-                    print(f"[DEBUG] ERREUR treepoem: {e}")
-                    raise HTTPException(status_code=500, detail=f"Impossible de générer GS1 DataMatrix conforme: {e}")
-            else:
-                raise HTTPException(status_code=501, detail="treepoem requis pour GS1 DataMatrix conforme - bibliothèque non disponible")
+            # UTILISER L'ARCHITECTURE HYBRIDE avec bwip-js en priorité
+            print("[DEBUG] Utilisation architecture hybride corrigée pour GS1 DataMatrix")
+            try:
+                img = generate_gs1_datamatrix_hybrid(formatted_data)
+                print("[DEBUG] SUCCESS: Architecture hybride GS1 DataMatrix")
+            except Exception as e:
+                print(f"[DEBUG] ERREUR architecture hybride: {e}")
+                raise HTTPException(status_code=500, detail=f"Impossible de générer GS1 DataMatrix conforme: {e}")
         elif barcode_format == BarcodeFormat.DATAMATRIX:
             # EXISTANT: DataMatrix standard (INCHANGÉ pour éviter régressions)
             img = generate_datamatrix(formatted_data)
