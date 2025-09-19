@@ -235,48 +235,23 @@ def generate_datamatrix(data, size=(5, 5), is_gs1=False):
     Args:
         data (str): Données à encoder
         size (tuple): Taille en mm (largeur, hauteur)
-        is_gs1 (bool): Si True, utilise les options spéciales pour GS1 DataMatrix
+        is_gs1 (bool): Si True, tente d'optimiser pour GS1
 
     Returns:
         PIL.Image: Image du code DataMatrix
     """
     if is_gs1:
-        print(f"[DEBUG] Génération GS1 DataMatrix avec données: {repr(data[:50])}...")
+        print(f"[DEBUG] Génération GS1 DataMatrix: {repr(data[:30])}...")
 
-        # Essayons plusieurs approches pour le GS1 DataMatrix
-        approaches = [
-            # Approche 1: Utiliser le préfixe ]d2 (format GS1)
-            ("]d2" + data, "utf-8", "Format ]d2"),
-
-            # Approche 2: Utiliser le byte 29 comme FNC1
-            (chr(29) + data, "utf-8", "FNC1 chr(29)"),
-
-            # Approche 3: Données brutes avec encodage spécial
-            (data, "utf-8", "Données brutes"),
-        ]
-
-        for approach_data, encoding, description in approaches:
-            try:
-                print(f"[DEBUG] Tentative: {description}")
-                encoded_data = approach_data.encode(encoding)
-                img_data = dmtx.encode(encoded_data)
-
-                if img_data:
-                    print(f"[DEBUG] Succès avec {description}")
-                    img = Image.frombytes('RGB', (img_data.width, img_data.height), img_data.pixels)
-                    return img
-
-            except Exception as e:
-                print(f"[DEBUG] Échec {description}: {e}")
-                continue
-
-        # Si aucune approche spéciale ne fonctionne, utiliser les données normales
-        print("[DEBUG] Fallback vers DataMatrix standard")
-
-    # Encodage standard
+    # Encoder en bytes pour pylibdmtx (simple et robuste)
     encoded_data = data.encode('utf-8')
+
+    # Générer l'image
     img_data = dmtx.encode(encoded_data)
+
+    # Convertir en image PIL
     img = Image.frombytes('RGB', (img_data.width, img_data.height), img_data.pixels)
+
     return img
 
 def generate_qrcode(data, error_correction=qrcode.constants.ERROR_CORRECT_M, box_size=10, border=4):
