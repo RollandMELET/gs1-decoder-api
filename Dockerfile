@@ -1,36 +1,42 @@
-# Dockerfile pour JPype (syntaxe commentaires corrigée)
+# Dockerfile pour JPype + Node.js/bwip-js (GS1 DataMatrix conformes)
 FROM python:3.10-slim
 
-# ---- AJOUT TRIVIAL POUR FORCER REBUILD ----
-ENV FORCE_REBUILD_TIMESTAMP=20250919133100 
-# ---- FIN AJOUT ----
+# Variables de build pour bwip-js
+ARG NODEJS_VERSION=18.x
+ARG BWIPJS_VERSION=latest
 
 ARG ZXING_VERSION=3.4.1
 # JCOMMANDER_VERSION n'est plus nécessaire
 
-# 1) Prérequis système (Java est essentiel pour JPype, Node.js pour bwip-js)
+# 1) Installation dépendances système + Node.js pour bwip-js (GS1 conforme)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
+      # Node.js setup (PRIORITÉ pour bwip-js GS1 DataMatrix)
+      curl \
+      gnupg \
+      ca-certificates && \
+    # Installation Node.js 18.x LTS (requis pour bwip-js)
+    curl -fsSL https://deb.nodesource.com/setup_${NODEJS_VERSION} | bash - && \
+    apt-get install -y \
+      # Node.js pour bwip-js (solution GS1 recommandée)
+      nodejs \
       # Java Runtime Environment (Important pour JPype/ZXing Java)
       default-jre-headless \
       # Dépendance C pour pylibdmtx
       libdmtx-dev \
       # Outil pour télécharger les JARs
       wget \
-      # Conservé car présent initialement
+      # Ghostscript pour treepoem
       ghostscript \
-      # Conservé car présent initialement
-      libmagickwand-dev \
-      # Node.js pour bwip-js (solution GS1 DataMatrix recommandée)
-      curl \
-      gnupg && \
-    # Installation Node.js 18.x LTS
-    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
-    apt-get install -y nodejs && \
-    # Installation bwip-js globalement
-    npm install -g bwip-js && \
-    # Nettoyage pour réduire la taille de l'image
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+      # ImageMagick pour diverses conversions
+      libmagickwand-dev && \
+    # Installation bwip-js globalement (backend BWIPP natif)
+    npm install -g bwip-js@${BWIPJS_VERSION} && \
+    # Vérification installations
+    node --version && \
+    npm list -g bwip-js && \
+    # Nettoyage complet pour optimiser taille image
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* ~/.npm
 
 # 2) Récupération des JARs ZXing (Core et JavaSE)
 RUN mkdir -p /zxing && \
