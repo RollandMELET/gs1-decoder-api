@@ -89,17 +89,18 @@ async function generateGS1DataMatrix() {
                     console.log(`[DEBUG] bwip-js: Tentative 3 - datamatrix + préfixe ^FNC1`);
                     pngBuffer = await tryGeneration(options3, "datamatrix + préfixe ^FNC1");
                 } catch (e3) {
-                    // TENTATIVE 4: format des données sans parenthèses
-                    const dataNoParens = data.replace(/[\(\)]/g, ''); // Enlever ()
+                    // TENTATIVE 4: FORMAT CORRECT selon Terry Burton (maintainer BWIPP)
+                    // "Use encoder datamatrix with parsefnc and insert ^FNC1 before each AI"
+                    const dataWithFNC1 = data.replace(/\((\d{2,4})\)/g, '^FNC1$1');
                     const options4 = {
-                        bcid: 'gs1datamatrix',
-                        text: dataNoParens,
-                        parsefnc: true,
+                        bcid: 'datamatrix',           // datamatrix (PAS gs1datamatrix)
+                        text: dataWithFNC1,           // ^FNC1 avant chaque AI
+                        parsefnc: true,               // Parse FNC1
                         scale: 5
                     };
-                    console.log(`[DEBUG] bwip-js: Tentative 4 - données sans parenthèses`);
-                    console.log(`[DEBUG] bwip-js: Données transformées: ${dataNoParens}`);
-                    pngBuffer = await tryGeneration(options4, "gs1datamatrix sans parenthèses");
+                    console.log(`[DEBUG] bwip-js: Tentative 4 - FORMAT CORRECT Terry Burton`);
+                    console.log(`[DEBUG] bwip-js: Transformation: ${data} → ${dataWithFNC1}`);
+                    pngBuffer = await tryGeneration(options4, "datamatrix + ^FNC1 (SOLUTION OFFICIELLE)");
                 }
             }
         }
