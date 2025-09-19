@@ -6,6 +6,7 @@ Supporte la génération de DataMatrix, QR Code et Code 128
 import io
 import os
 import re
+import json
 from PIL import Image
 from enum import Enum
 import qrcode
@@ -19,6 +20,75 @@ try:
     TREEPOEM_AVAILABLE = True
 except ImportError:
     TREEPOEM_AVAILABLE = False
+
+# Charger les définitions des Application Identifiers GS1
+GS1_AI_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "resources", "gs1_application_identifiers.json")
+
+def load_ai_definitions():
+    """Charge les définitions des AI GS1 depuis le fichier JSON."""
+    try:
+        with open(GS1_AI_PATH, 'r') as f:
+            return json.load(f)
+    except Exception as e:
+        print(f"Erreur lors du chargement des AI GS1: {e}")
+        # Table minimale par défaut en cas d'erreur
+        return {
+            "01": {"name": "GTIN", "length": 14, "fixed_length": True},
+            "10": {"name": "BATCH", "length": 20, "fixed_length": False},
+            "21": {"name": "SERIAL", "length": 20, "fixed_length": False},
+        }
+
+# Charger les définitions des AI au démarrage du module
+AI_DEFINITIONS = load_ai_definitions()
+
+def parse_parentheses_format(data):
+    """
+    Parse les données GS1 au format avec parenthèses.
+
+    Args:
+        data (str): Données au format (01)12345...(10)LOT123...
+
+    Returns:
+        list: Liste de tuples (ai, value) où ai est l'Application Identifier et value la valeur
+
+    Example:
+        "(01)12345678901234(10)LOT123" -> [("01", "12345678901234"), ("10", "LOT123")]
+    """
+    # Pattern pour capturer (AI)Value
+    pattern = r'\((\d{2,4})\)([^()]*?)(?=\(\d|$)'
+    matches = re.findall(pattern, data)
+
+    result = []
+    for ai, value in matches:
+        # Nettoyer la valeur (enlever les espaces en fin)
+        value = value.rstrip()
+        result.append((ai, value))
+
+    return result
+
+def build_gs1_string_from_ais(ai_value_pairs):
+    """
+    Construit une chaîne GS1 conforme à partir des paires AI/valeur.
+
+    Args:
+        ai_value_pairs (list): Liste de tuples (ai, value)
+
+    Returns:
+        str: Chaîne GS1 avec les séparateurs GS appropriés
+    """
+    result = ""
+
+    for i, (ai, value) in enumerate(ai_value_pairs):
+        # Ajouter l'AI et sa valeur
+        result += ai + value
+
+        # Ajouter un séparateur GS si l'AI a une longueur variable
+        # et qu'il n'est pas le dernier élément
+        ai_def = AI_DEFINITIONS.get(ai)
+        if ai_def and not ai_def.get("fixed_length", True) and i < len(ai_value_pairs) - 1:
+            result += "\u001d"  # Caractère GS (Group Separator)
+
+    return result
 
 class BarcodeFormat(str, Enum):
     """Formats de codes-barres pris en charge pour la génération."""
@@ -38,74 +108,125 @@ class ImageFormat(str, Enum):
 def prepare_gs1_content(data, barcode_format):
     """
     Prépare les données GS1 pour la génération selon le format choisi.
-    
+
     Args:
-        data (str): Données brutes (ex: 01034531200000111719112510ABCD1234)
+        data (str): Données brutes - supporte maintenant les formats :
+                   - Sans parenthèses : 01034531200000111719112510ABCD1234
+                   - Avec parenthèses : (01)03453120000011(17)191125(10)ABCD1234
         barcode_format (BarcodeFormat): Format de code-barres cible
-        
+
     Returns:
-        str: Données formatées pour le générateur
+        str: Données formatées pour le générateur avec séparateurs GS appropriés
     """
-    # Pour DataMatrix GS1, insérer automatiquement les FNC1
+    # Pour DataMatrix GS1, insérer automatiquement les séparateurs GS appropriés
     if barcode_format in [BarcodeFormat.GS1_DATAMATRIX, BarcodeFormat.GS1_QRCODE]:
-        # Repérer les AI et insérer des séparateurs GS
-        formatted = ""
-        i = 0
-        
-        while i < len(data):
-            # Identifier l'AI (2, 3 ou 4 chiffres)
-            ai_length = 0
-            ai = None
-            
-            # Tester des AIs de différentes longueurs
-            for length in [4, 3, 2]:
-                if i + length <= len(data) and data[i:i+length].isdigit():
-                    ai = data[i:i+length]
-                    ai_length = length
-                    break
-            
-            if not ai:
-                # Pas d'AI trouvé, avancer d'un caractère
-                formatted += data[i]
-                i += 1
-                continue
-            
-            # Ajouter l'AI à la chaîne formatée
-            formatted += ai
-            i += ai_length
-            
-            # Chercher le prochain AI pour déterminer la fin de la valeur
-            next_ai_pos = -1
-            for j in range(i, len(data)):
-                if j + 2 <= len(data) and data[j:j+2].isdigit():
-                    # Vérifier si c'est le début d'un nouvel AI
-                    if re.match(r'^(00|01|02|10|11|13|15|17|20|21|30|31|32|33|34|35|36|37|90|91|92)', data[j:j+2]):
-                        next_ai_pos = j
-                        break
-            
-            # Extraire la valeur
-            if next_ai_pos != -1:
-                value = data[i:next_ai_pos]
-                formatted += value + "\u001d"  # Ajouter GS après la valeur
-                i = next_ai_pos
-            else:
-                # Dernier AI, prendre le reste de la chaîne
-                formatted += data[i:]
-                i = len(data)
-        
+        # Détecter le format d'entrée
+        if '(' in data and ')' in data:
+            # Format avec parenthèses - parser et reconstruire
+            ai_value_pairs = parse_parentheses_format(data)
+            formatted = build_gs1_string_from_ais(ai_value_pairs)
+        else:
+            # Format sans parenthèses - utiliser l'ancien algorithme amélioré
+            formatted = _parse_raw_gs1_data(data)
+
         return formatted
-    
+
     # Pour GS1-128, ajouter le FNC1 au début
     elif barcode_format == BarcodeFormat.GS1_128:
+        # Si format avec parenthèses, convertir d'abord
+        processed_data = data
+        if '(' in data and ')' in data:
+            ai_value_pairs = parse_parentheses_format(data)
+            processed_data = build_gs1_string_from_ais(ai_value_pairs)
+
         if TREEPOEM_AVAILABLE:
             # treepoem gère automatiquement le FNC1 pour GS1-128
-            return data
+            return processed_data
         else:
             # Gestion manuelle avec bibliothèque de secours
-            return f"~{data}"  # ~ est souvent utilisé pour représenter FNC1
-    
+            return f"~{processed_data}"  # ~ est souvent utilisé pour représenter FNC1
+
     # Pour les formats non-GS1, utiliser les données telles quelles
     return data
+
+def _parse_raw_gs1_data(data):
+    """
+    Parse les données GS1 au format brut (sans parenthèses) - version améliorée.
+
+    Args:
+        data (str): Données brutes sans parenthèses
+
+    Returns:
+        str: Données formatées avec séparateurs GS appropriés
+    """
+    formatted = ""
+    i = 0
+
+    while i < len(data):
+        # Identifier l'AI (2, 3 ou 4 chiffres)
+        ai = None
+        ai_length = 0
+
+        # Tester des AIs de différentes longueurs en vérifiant s'ils existent
+        for length in [4, 3, 2]:
+            if i + length <= len(data):
+                potential_ai = data[i:i+length]
+                if potential_ai.isdigit() and potential_ai in AI_DEFINITIONS:
+                    ai = potential_ai
+                    ai_length = length
+                    break
+
+        if not ai:
+            # Pas d'AI valide trouvé, avancer d'un caractère
+            formatted += data[i]
+            i += 1
+            continue
+
+        # Ajouter l'AI à la chaîne formatée
+        formatted += ai
+        i += ai_length
+
+        # Déterminer la longueur de la valeur
+        ai_def = AI_DEFINITIONS[ai]
+        value_length = ai_def["length"]
+        is_fixed_length = ai_def["fixed_length"]
+
+        if is_fixed_length:
+            # Longueur fixe - extraire exactement le nombre de caractères requis
+            if i + value_length <= len(data):
+                value = data[i:i+value_length]
+                formatted += value
+                i += value_length
+            else:
+                # Pas assez de caractères restants
+                formatted += data[i:]
+                break
+        else:
+            # Longueur variable - chercher le prochain AI ou prendre jusqu'à la fin
+            next_ai_pos = len(data)  # Par défaut, jusqu'à la fin
+
+            # Chercher le prochain AI valide
+            for j in range(i, len(data)):
+                for ai_len in [2, 3, 4]:
+                    if j + ai_len <= len(data):
+                        potential_ai = data[j:j+ai_len]
+                        if potential_ai.isdigit() and potential_ai in AI_DEFINITIONS:
+                            next_ai_pos = j
+                            break
+                if next_ai_pos < len(data):
+                    break
+
+            # Extraire la valeur
+            value = data[i:next_ai_pos]
+            formatted += value
+
+            # Ajouter séparateur GS si ce n'est pas le dernier élément
+            if next_ai_pos < len(data):
+                formatted += "\u001d"
+
+            i = next_ai_pos
+
+    return formatted
 
 def generate_datamatrix(data, size=(5, 5)):
     """
@@ -237,6 +358,11 @@ def generate_barcode(data, barcode_format=BarcodeFormat.DATAMATRIX, image_format
     """
     # Préparer les données selon le format GS1
     formatted_data = prepare_gs1_content(data, barcode_format)
+
+    # Debug: afficher la chaîne formatée pour GS1 DataMatrix
+    if barcode_format == BarcodeFormat.GS1_DATAMATRIX:
+        print(f"[DEBUG] Input data: {repr(data)}")
+        print(f"[DEBUG] Formatted for GS1 DataMatrix: {repr(formatted_data)}")
     
     # Utiliser treepoem si disponible et demandé
     if use_treepoem and TREEPOEM_AVAILABLE:
