@@ -368,12 +368,16 @@ def generate_gs1_datamatrix_bwipjs(data, **kwargs):
             )
 
             print(f"[DEBUG] bwip-js: Code retour: {result.returncode}")
-            print(f"[DEBUG] bwip-js: Stdout: {result.stdout}")
+            print(f"[DEBUG] bwip-js: Stdout: {result.stdout.strip()}")
 
             if result.stderr:
-                print(f"[DEBUG] bwip-js: Stderr: {result.stderr}")
+                print(f"[DEBUG] bwip-js: Stderr: {result.stderr.strip()}")
 
             if result.returncode != 0:
+                # Afficher TOUTE la sortie pour diagnostic
+                print(f"[DEBUG] bwip-js: ERREUR COMPLÈTE:")
+                print(f"[DEBUG] bwip-js: Stdout complet: {repr(result.stdout)}")
+                print(f"[DEBUG] bwip-js: Stderr complet: {repr(result.stderr)}")
                 raise Exception(f"bwip-js échec (code {result.returncode}): {result.stderr}")
 
             # Vérifier que le fichier a été créé
