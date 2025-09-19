@@ -150,13 +150,14 @@ async def health():
     if nodejs_ok and bwipjs_script_ok:
         try:
             import subprocess
-            result = subprocess.run(['node', '-e', 'console.log(require("bwip-js").VERSION || "OK")'],
-                                   capture_output=True, text=True, timeout=5)
+            # Test du module local bwip-js
+            result = subprocess.run(['node', '-e', 'console.log(require("./node_modules/bwip-js").VERSION || "OK")'],
+                                   capture_output=True, text=True, timeout=5, cwd='/app')
             if result.returncode == 0:
                 bwipjs_ok = True
                 bwipjs_error = f"OK - Version: {result.stdout.strip()}"
             else:
-                bwipjs_error = f"Import error: {result.stderr}"
+                bwipjs_error = f"Module local error: {result.stderr}"
         except Exception as e:
             bwipjs_error = f"Test error: {e}"
     else:

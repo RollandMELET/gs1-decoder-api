@@ -1,0 +1,17 @@
+{
+  "name": "gs1-decoder-api-bwipjs",
+  "version": "1.0.0",
+  "description": "Node.js dependencies for GS1 DataMatrix generation via bwip-js",
+  "main": "generate_gs1_bwip.js",
+  "scripts": {
+    "test": "node generate_gs1_bwip.js"
+  },
+  "dependencies": {
+    "bwip-js": "^4.7.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "Rolland Melet",
+  "license": "MIT"
+}

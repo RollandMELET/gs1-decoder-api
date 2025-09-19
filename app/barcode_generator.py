@@ -35,10 +35,11 @@ except ImportError as e:
 import shutil
 DMTXWRITE_AVAILABLE = shutil.which('dmtxwrite') is not None
 
-# Vérifier disponibilité bwip-js via Node.js
+# Vérifier disponibilité bwip-js via Node.js (module local)
 BWIPJS_AVAILABLE = (
     shutil.which('node') is not None and
-    os.path.exists('/app/generate_gs1_bwip.js')
+    os.path.exists('/app/generate_gs1_bwip.js') and
+    os.path.exists('/app/node_modules/bwip-js')
 )
 
 if BWIPJS_AVAILABLE:

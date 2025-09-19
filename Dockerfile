@@ -30,13 +30,11 @@ RUN apt-get update && \
       ghostscript \
       # ImageMagick pour diverses conversions
       libmagickwand-dev && \
-    # Installation bwip-js globalement (backend BWIPP natif)
-    npm install -g bwip-js@${BWIPJS_VERSION} && \
-    # Vérification installations
+    # Vérification Node.js
     node --version && \
-    npm list -g bwip-js && \
+    npm --version && \
     # Nettoyage complet pour optimiser taille image
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* ~/.npm
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 2) Récupération des JARs ZXing (Core et JavaSE)
 RUN mkdir -p /zxing && \
@@ -53,11 +51,15 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-# 4) Code source
+# 4) Dépendances Node.js (bwip-js local)
+COPY package.json .
+RUN npm install --production
+
+# 5) Code source
 COPY . /app
 
-# 5) Port
+# 6) Port
 EXPOSE 8000
 
-# 6) Commande de lancement
+# 7) Commande de lancement
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
