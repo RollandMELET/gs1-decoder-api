@@ -333,7 +333,7 @@ def generate_code128(data):
 
 def generate_gs1_datamatrix_bwipjs(data, **kwargs):
     """
-    Génère un GS1 DataMatrix via bwip-js Node.js (RECOMMANDÉ par note technique).
+    Génère un GS1 DataMatrix via bwip-js Node.js (SOLUTION CORRIGÉE).
 
     Args:
         data (str): Données GS1 formatées (avec parenthèses supportées)
@@ -348,22 +348,22 @@ def generate_gs1_datamatrix_bwipjs(data, **kwargs):
     if not BWIPJS_AVAILABLE:
         raise ImportError("bwip-js non disponible - Node.js ou script manquant")
 
-    print(f"[DEBUG] bwip-js: Génération GS1 DataMatrix avec données: {repr(data[:50])}...")
+    print(f"[DEBUG] bwip-js CORRIGÉ: Génération GS1 DataMatrix avec données: {repr(data[:50])}...")
 
     import subprocess
     import tempfile
 
     with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
         try:
-            # Commande Node.js pour générer le GS1 DataMatrix
+            # Commande Node.js SIMPLIFIÉE pour générer le GS1 DataMatrix
             cmd = [
                 'node',
                 '/app/generate_gs1_bwip.js',
-                data,
+                data,  # Données brutes (pas de transformation)
                 tmp.name
             ]
 
-            print(f"[DEBUG] bwip-js: Exécution commande: {' '.join(cmd)}")
+            print(f"[DEBUG] bwip-js CORRIGÉ: Exécution commande: {' '.join(cmd)}")
 
             # Exécution avec timeout et capture des erreurs
             result = subprocess.run(
@@ -374,17 +374,15 @@ def generate_gs1_datamatrix_bwipjs(data, **kwargs):
                 cwd='/app'
             )
 
-            print(f"[DEBUG] bwip-js: Code retour: {result.returncode}")
-            print(f"[DEBUG] bwip-js: Stdout: {result.stdout.strip()}")
+            print(f"[DEBUG] bwip-js CORRIGÉ: Code retour: {result.returncode}")
+            print(f"[DEBUG] bwip-js CORRIGÉ: Stdout: {result.stdout.strip()}")
 
             if result.stderr:
-                print(f"[DEBUG] bwip-js: Stderr: {result.stderr.strip()}")
+                print(f"[DEBUG] bwip-js CORRIGÉ: Stderr: {result.stderr.strip()}")
 
             if result.returncode != 0:
-                # Afficher TOUTE la sortie pour diagnostic
-                print(f"[DEBUG] bwip-js: ERREUR COMPLÈTE:")
-                print(f"[DEBUG] bwip-js: Stdout complet: {repr(result.stdout)}")
-                print(f"[DEBUG] bwip-js: Stderr complet: {repr(result.stderr)}")
+                # En cas d'échec, lever une exception pour passer au fallback
+                print(f"[DEBUG] bwip-js CORRIGÉ: Échec - passera au fallback")
                 raise Exception(f"bwip-js échec (code {result.returncode}): {result.stderr}")
 
             # Vérifier que le fichier a été créé
@@ -393,14 +391,14 @@ def generate_gs1_datamatrix_bwipjs(data, **kwargs):
 
             # Charger l'image générée
             img = Image.open(tmp.name)
-            print(f"[DEBUG] bwip-js: Image chargée avec succès {img.size}")
+            print(f"[DEBUG] bwip-js CORRIGÉ: SUCCÈS - Image chargée {img.size}")
 
             return img
 
         except subprocess.TimeoutExpired:
             raise Exception("bwip-js timeout - génération trop longue")
         except Exception as e:
-            print(f"[DEBUG] bwip-js: Erreur subprocess: {e}")
+            print(f"[DEBUG] bwip-js CORRIGÉ: Erreur subprocess: {e}")
             raise e
         finally:
             # Nettoyage du fichier temporaire
