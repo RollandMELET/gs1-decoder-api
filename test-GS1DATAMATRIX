@@ -1,0 +1,8 @@
+curl -X POST "https://gs1-decoder-api.rorworld.eu/generate/" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": "(01)03760423190005(11)250326(3100)015500(21)0000000D(90)7391023(93)DHA(94)UP(95)ENVELOPPE_NUE_4UF",
+    "format": "gs1-datamatrix",
+    "image_format": "png"
+  }' \
+  --output barcode.png

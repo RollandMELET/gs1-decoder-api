@@ -21,6 +21,17 @@ try:
 except ImportError:
     TREEPOEM_AVAILABLE = False
 
+# Tenter d'importer zint pour GS1 DataMatrix spécialisé
+try:
+    from zint import Zint
+    ZINT_AVAILABLE = True
+except ImportError:
+    ZINT_AVAILABLE = False
+
+# Vérifier disponibilité dmtxwrite système
+import shutil
+DMTXWRITE_AVAILABLE = shutil.which('dmtxwrite') is not None
+
 # Charger les définitions des Application Identifiers GS1
 GS1_AI_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "resources", "gs1_application_identifiers.json")
 
@@ -278,21 +289,204 @@ def generate_qrcode(data, error_correction=qrcode.constants.ERROR_CORRECT_M, box
 def generate_code128(data):
     """
     Génère un Code 128.
-    
+
     Args:
         data (str): Données à encoder
-        
+
     Returns:
         PIL.Image: Image du Code 128
     """
     # Utiliser python-barcode pour générer un Code 128
     output = io.BytesIO()
     Code128(data, writer=ImageWriter()).write(output)
-    
+
     # Convertir le résultat en image PIL
     output.seek(0)
     img = Image.open(output)
     return img
+
+# ========================================
+# FONCTIONS SPÉCIALISÉES GS1 DATAMATRIX
+# ========================================
+
+def generate_gs1_datamatrix_treepoem(data, **kwargs):
+    """
+    Génère un GS1 DataMatrix via treepoem (recommandé).
+
+    Args:
+        data (str): Données GS1 formatées
+        **kwargs: Arguments supplémentaires
+
+    Returns:
+        PIL.Image: Image du GS1 DataMatrix
+
+    Raises:
+        Exception: Si treepoem n'est pas disponible ou échoue
+    """
+    if not TREEPOEM_AVAILABLE:
+        raise ImportError("treepoem n'est pas disponible")
+
+    print(f"[DEBUG] treepoem: Génération GS1 DataMatrix avec données: {repr(data[:50])}...")
+
+    # Tentative 1: Format GS1 DataMatrix dédié
+    try:
+        img = treepoem.generate_barcode(
+            barcode_type='gs1datamatrix',
+            data=data,
+            options={'version': 'auto'}
+        )
+        print("[DEBUG] treepoem: Succès avec gs1datamatrix")
+        return img.convert('RGB')
+    except Exception as e:
+        print(f"[DEBUG] treepoem: gs1datamatrix échoué: {e}")
+
+    # Tentative 2: DataMatrix avec options GS1
+    try:
+        img = treepoem.generate_barcode(
+            barcode_type='datamatrix',
+            data=data,
+            options={
+                'version': 'auto',
+                'gs1': 'true'
+            }
+        )
+        print("[DEBUG] treepoem: Succès avec datamatrix + gs1")
+        return img.convert('RGB')
+    except Exception as e:
+        print(f"[DEBUG] treepoem: datamatrix+gs1 échoué: {e}")
+
+    # Tentative 3: DataMatrix standard (fallback)
+    img = treepoem.generate_barcode(
+        barcode_type='datamatrix',
+        data=data,
+        options={'version': 'auto'}
+    )
+    print("[DEBUG] treepoem: Fallback datamatrix standard")
+    return img.convert('RGB')
+
+def generate_gs1_datamatrix_zint(data, **kwargs):
+    """
+    Génère un GS1 DataMatrix via zint-python.
+
+    Args:
+        data (str): Données GS1 formatées
+        **kwargs: Arguments supplémentaires
+
+    Returns:
+        PIL.Image: Image du GS1 DataMatrix
+
+    Raises:
+        Exception: Si zint n'est pas disponible ou échoue
+    """
+    if not ZINT_AVAILABLE:
+        raise ImportError("zint-python n'est pas disponible")
+
+    print(f"[DEBUG] zint: Génération GS1 DataMatrix avec données: {repr(data[:50])}...")
+
+    z = Zint()
+    z.symbology = 'DATAMATRIX'
+    z.option_2 = 1              # Active le mode GS1
+    z.data = data
+
+    # Génération PNG en mémoire
+    image_data = z.render(file_type='PNG')
+
+    # Conversion PIL
+    return Image.open(io.BytesIO(image_data))
+
+def generate_gs1_datamatrix_dmtxwrite(data, **kwargs):
+    """
+    Génère un GS1 DataMatrix via dmtxwrite système.
+
+    Args:
+        data (str): Données GS1 formatées
+        **kwargs: Arguments supplémentaires
+
+    Returns:
+        PIL.Image: Image du GS1 DataMatrix
+
+    Raises:
+        Exception: Si dmtxwrite n'est pas disponible ou échoue
+    """
+    if not DMTXWRITE_AVAILABLE:
+        raise ImportError("dmtxwrite n'est pas disponible sur le système")
+
+    print(f"[DEBUG] dmtxwrite: Génération GS1 DataMatrix avec données: {repr(data[:50])}...")
+
+    import tempfile
+    import subprocess
+
+    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+        # Commande dmtxwrite avec options GS1
+        cmd = [
+            'dmtxwrite',
+            '-f', 'PNG',           # Format PNG
+            '-e', 'gs1',           # Encodage GS1 (si supporté)
+            '-o', tmp.name,        # Fichier sortie
+            data                   # Données
+        ]
+
+        try:
+            subprocess.run(cmd, check=True, capture_output=True)
+            return Image.open(tmp.name)
+        except subprocess.CalledProcessError as e:
+            # Fallback sans option -e gs1
+            cmd_fallback = ['dmtxwrite', '-f', 'PNG', '-o', tmp.name, data]
+            subprocess.run(cmd_fallback, check=True, capture_output=True)
+            return Image.open(tmp.name)
+
+def generate_gs1_datamatrix_hybrid(data, **kwargs):
+    """
+    Générateur hybride GS1 DataMatrix avec fallbacks automatiques.
+
+    Args:
+        data (str): Données GS1 formatées
+        **kwargs: Arguments supplémentaires
+
+    Returns:
+        PIL.Image: Image du GS1 DataMatrix
+
+    Raises:
+        Exception: Si tous les générateurs échouent
+    """
+    errors = []
+
+    print(f"[DEBUG] GS1 DataMatrix hybride: Tentative génération pour {repr(data[:30])}...")
+
+    # Priorité 1: treepoem (recommandé pour GS1)
+    if TREEPOEM_AVAILABLE:
+        try:
+            return generate_gs1_datamatrix_treepoem(data, **kwargs)
+        except Exception as e:
+            errors.append(f"treepoem: {e}")
+            print(f"[DEBUG] treepoem échoué: {e}")
+
+    # Priorité 2: zint-python (excellent support GS1)
+    if ZINT_AVAILABLE:
+        try:
+            return generate_gs1_datamatrix_zint(data, **kwargs)
+        except Exception as e:
+            errors.append(f"zint: {e}")
+            print(f"[DEBUG] zint échoué: {e}")
+
+    # Priorité 3: dmtxwrite système
+    if DMTXWRITE_AVAILABLE:
+        try:
+            return generate_gs1_datamatrix_dmtxwrite(data, **kwargs)
+        except Exception as e:
+            errors.append(f"dmtxwrite: {e}")
+            print(f"[DEBUG] dmtxwrite échoué: {e}")
+
+    # Fallback: pylibdmtx standard (actuel)
+    try:
+        print("[DEBUG] Fallback vers pylibdmtx DataMatrix standard")
+        return generate_datamatrix(data)
+    except Exception as e:
+        errors.append(f"pylibdmtx: {e}")
+        print(f"[DEBUG] pylibdmtx échoué: {e}")
+
+    # Erreur si tout échoue
+    raise Exception(f"Tous les générateurs GS1 DataMatrix ont échoué: {errors}")
 
 def generate_barcode_with_treepoem(data, barcode_format):
     """
@@ -377,13 +571,19 @@ def generate_barcode(data, barcode_format=BarcodeFormat.DATAMATRIX, image_format
             print(f"Treepoem error: {e}, using specific generators")
             use_treepoem = False
     
-    # Utiliser les générateurs spécifiques
+    # Utiliser les générateurs spécifiques avec architecture hybride
     if not use_treepoem or not TREEPOEM_AVAILABLE:
-        if barcode_format in [BarcodeFormat.DATAMATRIX, BarcodeFormat.GS1_DATAMATRIX]:
+        if barcode_format == BarcodeFormat.GS1_DATAMATRIX:
+            # NOUVEAU: Générateur GS1 DataMatrix spécialisé avec FNC1
+            img = generate_gs1_datamatrix_hybrid(formatted_data)
+        elif barcode_format == BarcodeFormat.DATAMATRIX:
+            # EXISTANT: DataMatrix standard (INCHANGÉ pour éviter régressions)
             img = generate_datamatrix(formatted_data)
         elif barcode_format in [BarcodeFormat.QRCODE, BarcodeFormat.GS1_QRCODE]:
+            # EXISTANT: QR Code (INCHANGÉ)
             img = generate_qrcode(formatted_data)
         elif barcode_format in [BarcodeFormat.CODE128, BarcodeFormat.GS1_128]:
+            # EXISTANT: Code 128 (INCHANGÉ)
             img = generate_code128(formatted_data)
         else:
             raise ValueError(f"Format de code-barres non pris en charge: {barcode_format}")
