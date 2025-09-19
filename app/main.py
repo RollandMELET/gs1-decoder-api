@@ -127,10 +127,29 @@ async def get_debug_log_viewer(log_filename: str):
 @app.get("/health", response_model=HealthResponse)
 async def health():
     zxing_ok = jpype_started and MultiFormatReader_Java is not None and shutil.which("java") is not None
+
+    # Test treepoem availability
+    treepoem_ok = False
+    treepoem_error = "Non testé"
+    try:
+        import treepoem
+        treepoem_ok = True
+        treepoem_error = "OK"
+    except Exception as e:
+        treepoem_error = str(e)
+
+    # Test ghostscript availability
+    ghostscript_ok = shutil.which("gs") is not None
+
     capabilities = {
         "decoders": {
             "zxing_jpype": zxing_ok,
             "pylibdmtx": _check_pylibdmtx_available()
+        },
+        "generators": {
+            "treepoem": treepoem_ok,
+            "ghostscript": ghostscript_ok,
+            "treepoem_error": treepoem_error
         },
         "supported_codes": [fmt.value for fmt in DetectedBarcodeFormatEnum if fmt != DetectedBarcodeFormatEnum.UNKNOWN],
         "api_version": app.version,
