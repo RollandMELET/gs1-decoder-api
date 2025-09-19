@@ -13,6 +13,7 @@ import qrcode
 from barcode import Code128
 from barcode.writer import ImageWriter
 import pylibdmtx.pylibdmtx as dmtx
+from fastapi import HTTPException
 
 # Tenter d'importer treepoem si disponible (pour des formats supplémentaires)
 try:
@@ -549,8 +550,25 @@ def generate_barcode(data, barcode_format=BarcodeFormat.DATAMATRIX, image_format
     # Utiliser les générateurs spécifiques avec architecture hybride
     if not use_treepoem or not TREEPOEM_AVAILABLE:
         if barcode_format == BarcodeFormat.GS1_DATAMATRIX:
-            # NOUVEAU: Générateur GS1 DataMatrix spécialisé avec FNC1
-            img = generate_gs1_datamatrix_hybrid(formatted_data)
+            # FORCE treepoem pour GS1 DataMatrix avec parsefnc
+            if TREEPOEM_AVAILABLE:
+                print("[DEBUG] Force treepoem pour GS1 DataMatrix")
+                try:
+                    img = treepoem.generate_barcode(
+                        barcode_type='gs1datamatrix',
+                        data=formatted_data,
+                        options={
+                            'parsefnc': True,      # CRITIQUE pour FNC1
+                            'version': 'auto'
+                        }
+                    )
+                    print("[DEBUG] SUCCESS: treepoem GS1 DataMatrix avec parsefnc")
+                    img = img.convert('RGB')
+                except Exception as e:
+                    print(f"[DEBUG] ERREUR treepoem: {e}")
+                    raise HTTPException(status_code=500, detail=f"Impossible de générer GS1 DataMatrix conforme: {e}")
+            else:
+                raise HTTPException(status_code=501, detail="treepoem requis pour GS1 DataMatrix conforme - bibliothèque non disponible")
         elif barcode_format == BarcodeFormat.DATAMATRIX:
             # EXISTANT: DataMatrix standard (INCHANGÉ pour éviter régressions)
             img = generate_datamatrix(formatted_data)
