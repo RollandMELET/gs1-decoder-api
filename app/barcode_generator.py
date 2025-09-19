@@ -23,10 +23,12 @@ except ImportError:
 
 # Tenter d'importer zint pour GS1 DataMatrix spécialisé
 try:
-    from zint import Zint
+    import zint
     ZINT_AVAILABLE = True
-except ImportError:
+    print("[DEBUG] zint-bindings disponible")
+except ImportError as e:
     ZINT_AVAILABLE = False
+    print(f"[DEBUG] zint-bindings non disponible: {e}")
 
 # Vérifier disponibilité dmtxwrite système
 import shutil
@@ -383,16 +385,15 @@ def generate_gs1_datamatrix_zint(data, **kwargs):
 
     print(f"[DEBUG] zint: Génération GS1 DataMatrix avec données: {repr(data[:50])}...")
 
-    z = Zint()
-    z.symbology = 'DATAMATRIX'
-    z.option_2 = 1              # Active le mode GS1
-    z.data = data
+    # Utilisation correcte de zint-bindings
+    barcode = zint.Barcode(zint.BarcodeType.DATAMATRIX)
+    barcode.set_option_2(1)     # Active le mode GS1
 
-    # Génération PNG en mémoire
-    image_data = z.render(file_type='PNG')
+    # Génération PNG
+    png_data = barcode.encode_and_render(data, file_format='PNG')
 
     # Conversion PIL
-    return Image.open(io.BytesIO(image_data))
+    return Image.open(io.BytesIO(png_data))
 
 def generate_gs1_datamatrix_dmtxwrite(data, **kwargs):
     """
