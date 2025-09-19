@@ -35,6 +35,17 @@ except ImportError as e:
 import shutil
 DMTXWRITE_AVAILABLE = shutil.which('dmtxwrite') is not None
 
+# Vérifier disponibilité bwip-js via Node.js
+BWIPJS_AVAILABLE = (
+    shutil.which('node') is not None and
+    os.path.exists('/app/generate_gs1_bwip.js')
+)
+
+if BWIPJS_AVAILABLE:
+    print("[DEBUG] bwip-js disponible via Node.js")
+else:
+    print("[DEBUG] bwip-js non disponible - node ou script manquant")
+
 # Charger les définitions des Application Identifiers GS1
 GS1_AI_PATH = os.path.join(os.path.dirname(os.path.dirname(__file__)), "resources", "gs1_application_identifiers.json")
 
@@ -312,6 +323,81 @@ def generate_code128(data):
 # FONCTIONS SPÉCIALISÉES GS1 DATAMATRIX
 # ========================================
 
+def generate_gs1_datamatrix_bwipjs(data, **kwargs):
+    """
+    Génère un GS1 DataMatrix via bwip-js Node.js (RECOMMANDÉ par note technique).
+
+    Args:
+        data (str): Données GS1 formatées (avec parenthèses supportées)
+        **kwargs: Arguments supplémentaires
+
+    Returns:
+        PIL.Image: Image du GS1 DataMatrix
+
+    Raises:
+        Exception: Si bwip-js n'est pas disponible ou échoue
+    """
+    if not BWIPJS_AVAILABLE:
+        raise ImportError("bwip-js non disponible - Node.js ou script manquant")
+
+    print(f"[DEBUG] bwip-js: Génération GS1 DataMatrix avec données: {repr(data[:50])}...")
+
+    import subprocess
+    import tempfile
+
+    with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
+        try:
+            # Commande Node.js pour générer le GS1 DataMatrix
+            cmd = [
+                'node',
+                '/app/generate_gs1_bwip.js',
+                data,
+                tmp.name
+            ]
+
+            print(f"[DEBUG] bwip-js: Exécution commande: {' '.join(cmd)}")
+
+            # Exécution avec timeout et capture des erreurs
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30,  # Timeout 30 secondes
+                cwd='/app'
+            )
+
+            print(f"[DEBUG] bwip-js: Code retour: {result.returncode}")
+            print(f"[DEBUG] bwip-js: Stdout: {result.stdout}")
+
+            if result.stderr:
+                print(f"[DEBUG] bwip-js: Stderr: {result.stderr}")
+
+            if result.returncode != 0:
+                raise Exception(f"bwip-js échec (code {result.returncode}): {result.stderr}")
+
+            # Vérifier que le fichier a été créé
+            if not os.path.exists(tmp.name) or os.path.getsize(tmp.name) == 0:
+                raise Exception("bwip-js n'a pas généré de fichier PNG valide")
+
+            # Charger l'image générée
+            img = Image.open(tmp.name)
+            print(f"[DEBUG] bwip-js: Image chargée avec succès {img.size}")
+
+            return img
+
+        except subprocess.TimeoutExpired:
+            raise Exception("bwip-js timeout - génération trop longue")
+        except Exception as e:
+            print(f"[DEBUG] bwip-js: Erreur subprocess: {e}")
+            raise e
+        finally:
+            # Nettoyage du fichier temporaire
+            try:
+                if os.path.exists(tmp.name):
+                    os.unlink(tmp.name)
+            except:
+                pass
+
 def generate_gs1_datamatrix_treepoem(data, **kwargs):
     """
     Génère un GS1 DataMatrix via treepoem (recommandé).
@@ -421,6 +507,10 @@ def generate_gs1_datamatrix_dmtxwrite(data, **kwargs):
 def generate_gs1_datamatrix_hybrid(data, **kwargs):
     """
     Générateur hybride GS1 DataMatrix avec fallbacks automatiques.
+    ORDRE DE PRIORITÉ basé sur note technique :
+    1. bwip-js (MEILLEUR - backend BWIPP natif, pas de Ghostscript)
+    2. treepoem (BON - backend BWIPP, mais dépendance Ghostscript)
+    3. zint (ALTERNATIF)
 
     Args:
         data (str): Données GS1 formatées
@@ -436,32 +526,43 @@ def generate_gs1_datamatrix_hybrid(data, **kwargs):
 
     print(f"[DEBUG] GS1 DataMatrix hybride: Tentative génération pour {repr(data[:30])}...")
 
-    # Priorité 1: treepoem (recommandé pour GS1)
+    # PRIORITÉ 1: bwip-js (NOUVEAU - recommandé note technique)
+    if BWIPJS_AVAILABLE:
+        try:
+            print("[DEBUG] Tentative bwip-js (priorité 1)")
+            return generate_gs1_datamatrix_bwipjs(data, **kwargs)
+        except Exception as e:
+            errors.append(f"bwip-js: {e}")
+            print(f"[DEBUG] bwip-js échoué: {e}")
+
+    # PRIORITÉ 2: treepoem (existant)
     if TREEPOEM_AVAILABLE:
         try:
+            print("[DEBUG] Tentative treepoem (priorité 2)")
             return generate_gs1_datamatrix_treepoem(data, **kwargs)
         except Exception as e:
             errors.append(f"treepoem: {e}")
             print(f"[DEBUG] treepoem échoué: {e}")
 
-    # Priorité 2: zint-python (excellent support GS1)
+    # PRIORITÉ 3: zint-python (existant)
     if ZINT_AVAILABLE:
         try:
+            print("[DEBUG] Tentative zint (priorité 3)")
             return generate_gs1_datamatrix_zint(data, **kwargs)
         except Exception as e:
             errors.append(f"zint: {e}")
             print(f"[DEBUG] zint échoué: {e}")
 
-    # Priorité 3: dmtxwrite système
+    # PRIORITÉ 4: dmtxwrite système (dernier recours)
     if DMTXWRITE_AVAILABLE:
         try:
+            print("[DEBUG] Tentative dmtxwrite (priorité 4)")
             return generate_gs1_datamatrix_dmtxwrite(data, **kwargs)
         except Exception as e:
             errors.append(f"dmtxwrite: {e}")
             print(f"[DEBUG] dmtxwrite échoué: {e}")
 
     # PAS de fallback pylibdmtx pour GS1 - il ne peut pas générer de vrai GS1 DataMatrix
-    # Erreur si tous les générateurs GS1 spécialisés échouent
     raise Exception(f"Tous les générateurs GS1 DataMatrix spécialisés ont échoué: {errors}. pylibdmtx ne peut pas générer de vrai GS1 DataMatrix (pas de FNC1).")
 
 def generate_barcode_with_treepoem(data, barcode_format):

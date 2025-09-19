@@ -2,13 +2,13 @@
 FROM python:3.10-slim
 
 # ---- AJOUT TRIVIAL POUR FORCER REBUILD ----
-ENV FORCE_REBUILD_TIMESTAMP=20250919095700 
+ENV FORCE_REBUILD_TIMESTAMP=20250919121400 
 # ---- FIN AJOUT ----
 
 ARG ZXING_VERSION=3.4.1
 # JCOMMANDER_VERSION n'est plus nécessaire
 
-# 1) Prérequis système (Java est essentiel pour JPype)
+# 1) Prérequis système (Java est essentiel pour JPype, Node.js pour bwip-js)
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       # Java Runtime Environment (Important pour JPype/ZXing Java)
@@ -20,9 +20,17 @@ RUN apt-get update && \
       # Conservé car présent initialement
       ghostscript \
       # Conservé car présent initialement
-      libmagickwand-dev && \
+      libmagickwand-dev \
+      # Node.js pour bwip-js (solution GS1 DataMatrix recommandée)
+      curl \
+      gnupg && \
+    # Installation Node.js 18.x LTS
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs && \
+    # Installation bwip-js globalement
+    npm install -g bwip-js && \
     # Nettoyage pour réduire la taille de l'image
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 
 # 2) Récupération des JARs ZXing (Core et JavaSE)
 RUN mkdir -p /zxing && \

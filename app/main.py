@@ -141,6 +141,27 @@ async def health():
     # Test ghostscript availability
     ghostscript_ok = shutil.which("gs") is not None
 
+    # Test bwip-js availability
+    bwipjs_ok = False
+    bwipjs_error = "Non testé"
+    nodejs_ok = shutil.which("node") is not None
+    bwipjs_script_ok = os.path.exists('/app/generate_gs1_bwip.js')
+
+    if nodejs_ok and bwipjs_script_ok:
+        try:
+            import subprocess
+            result = subprocess.run(['node', '-e', 'console.log(require("bwip-js").VERSION || "OK")'],
+                                   capture_output=True, text=True, timeout=5)
+            if result.returncode == 0:
+                bwipjs_ok = True
+                bwipjs_error = f"OK - Version: {result.stdout.strip()}"
+            else:
+                bwipjs_error = f"Import error: {result.stderr}"
+        except Exception as e:
+            bwipjs_error = f"Test error: {e}"
+    else:
+        bwipjs_error = f"Node.js: {nodejs_ok}, Script: {bwipjs_script_ok}"
+
     capabilities = {
         "decoders": {
             "zxing_jpype": zxing_ok,
@@ -149,7 +170,10 @@ async def health():
         "generators": {
             "treepoem": treepoem_ok,
             "ghostscript": ghostscript_ok,
-            "treepoem_error": treepoem_error
+            "treepoem_error": treepoem_error,
+            "bwipjs": bwipjs_ok,
+            "nodejs": nodejs_ok,
+            "bwipjs_error": bwipjs_error
         },
         "supported_codes": [fmt.value for fmt in DetectedBarcodeFormatEnum if fmt != DetectedBarcodeFormatEnum.UNKNOWN],
         "api_version": app.version,
