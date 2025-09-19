@@ -1,17 +1,16 @@
 #!/usr/bin/env node
 /**
- * Script Node.js wrapper pour générer des GS1 DataMatrix via bwip-js
+ * Script Node.js simplifié pour générer des GS1 DataMatrix via bwip-js
  * Usage: node generate_gs1_bwip.js "données_gs1" "fichier_sortie.png"
  *
- * Basé sur les recommandations de la note technique :
- * - bwip-js = traduction directe du moteur PostScript BWIPP
- * - Support natif gs1datamatrix avec parsefnc
- * - Plus simple que treepoem (pas de dépendance Ghostscript)
+ * NOUVELLE APPROCHE : Configuration ultra-simple basée sur le projet de référence fonctionnel
+ * - Pas de tentatives multiples
+ * - Pas de transformations des données
+ * - Configuration identique au projet de référence qui fonctionne
  */
 
 const bwipjs = require('bwip-js');
 const fs = require('fs');
-const path = require('path');
 
 // Vérifier les arguments
 if (process.argv.length < 4) {
@@ -23,107 +22,48 @@ if (process.argv.length < 4) {
 const data = process.argv[2];
 const outputPath = process.argv[3];
 
-console.log(`[DEBUG] bwip-js: Génération GS1 DataMatrix`);
-console.log(`[DEBUG] Données: ${data}`);
+console.log(`[DEBUG] bwip-js: Génération GS1 DataMatrix SIMPLIFIÉE`);
+console.log(`[DEBUG] Données brutes: ${data}`);
 console.log(`[DEBUG] Sortie: ${outputPath}`);
 
-console.log(`[DEBUG] bwip-js: Tentative génération avec données: ${data}`);
-
-// TENTATIVE 1: gs1datamatrix avec parsefnc (configuration note technique)
-let options = {
-    bcid: 'gs1datamatrix',      // Type GS1 DataMatrix selon documentation
-    text: data,                 // Données au format (01)123...
-    parsefnc: true,             // Parse FNC1 et AI automatiquement
-    scale: 5,                   // Qualité
-    includetext: false
+// CONFIGURATION SIMPLE identique au projet de référence qui fonctionne
+const options = {
+    bcid: 'gs1datamatrix',      // Type GS1 DataMatrix
+    text: data,                 // Données brutes (avec parenthèses) - AUCUNE transformation
+    scale: 3,                   // Même valeur que le projet de référence
+    height: 10,                 // Valeurs standard du projet de référence
+    width: 10,
+    paddingleft: 10,
+    paddingright: 10,
+    paddingtop: 10,
+    paddingbottom: 10,
+    includetext: true,          // Comme dans le projet de référence
+    textxalign: 'center',
+    textcolor: '000000',
+    textgaps: 2
 };
 
-console.log(`[DEBUG] bwip-js: Tentative 1 - gs1datamatrix + parsefnc`);
+console.log(`[DEBUG] bwip-js: Configuration simple du projet de référence`);
 console.log(`[DEBUG] bwip-js: Options:`, JSON.stringify(options, null, 2));
 
-// Fonction pour tester une configuration
-function tryGeneration(opts, description) {
-    return new Promise((resolve, reject) => {
-        console.log(`[DEBUG] bwip-js: ${description}`);
-
-        bwipjs.toBuffer(opts, (err, pngBuffer) => {
-            if (err) {
-                console.log(`[DEBUG] bwip-js: ${description} échoué: ${err.message}`);
-                reject(err);
-            } else {
-                console.log(`[DEBUG] bwip-js: ${description} SUCCÈS (${pngBuffer.length} bytes)`);
-                resolve(pngBuffer);
-            }
-        });
-    });
-}
-
-// TENTATIVES MULTIPLES pour trouver la bonne configuration
-async function generateGS1DataMatrix() {
-    try {
-        let pngBuffer;
-
-        // TENTATIVE 1: gs1datamatrix + parsefnc (notre configuration actuelle)
-        try {
-            pngBuffer = await tryGeneration(options, "gs1datamatrix + parsefnc");
-        } catch (e) {
-            // TENTATIVE 2: datamatrix avec options GS1
-            try {
-                const options2 = {
-                    bcid: 'datamatrix',
-                    text: data,
-                    parse: true,
-                    parsefnc: true,
-                    scale: 5
-                };
-                console.log(`[DEBUG] bwip-js: Tentative 2 - datamatrix + parse + parsefnc`);
-                pngBuffer = await tryGeneration(options2, "datamatrix + parse + parsefnc");
-            } catch (e2) {
-                // TENTATIVE 3: datamatrix avec préfixe FNC1 manuel
-                try {
-                    const options3 = {
-                        bcid: 'datamatrix',
-                        text: `^FNC1${data}`,  // Préfixe FNC1 manuel
-                        scale: 5
-                    };
-                    console.log(`[DEBUG] bwip-js: Tentative 3 - datamatrix + préfixe ^FNC1`);
-                    pngBuffer = await tryGeneration(options3, "datamatrix + préfixe ^FNC1");
-                } catch (e3) {
-                    // TENTATIVE 4: FORMAT CORRECT selon Terry Burton (maintainer BWIPP)
-                    // "Use encoder datamatrix with parsefnc and insert ^FNC1 before each AI"
-                    const dataWithFNC1 = data.replace(/\((\d{2,4})\)/g, '^FNC1$1');
-                    const options4 = {
-                        bcid: 'datamatrix',           // datamatrix (PAS gs1datamatrix)
-                        text: dataWithFNC1,           // ^FNC1 avant chaque AI
-                        parsefnc: true,               // Parse FNC1
-                        scale: 5
-                    };
-                    console.log(`[DEBUG] bwip-js: Tentative 4 - FORMAT CORRECT Terry Burton`);
-                    console.log(`[DEBUG] bwip-js: Transformation: ${data} → ${dataWithFNC1}`);
-                    pngBuffer = await tryGeneration(options4, "datamatrix + ^FNC1 (SOLUTION OFFICIELLE)");
-                }
-            }
-        }
-
-        // Sauvegarder le résultat
-        fs.writeFileSync(outputPath, pngBuffer);
-
-        console.log(`[SUCCESS] GS1 DataMatrix généré avec bwip-js`);
-        console.log(`[SUCCESS] Fichier: ${outputPath} (${pngBuffer.length} bytes)`);
-        console.log(`[SUCCESS] Identifiant AIM attendu: ]d2 (GS1 DataMatrix)`);
-
-        process.exit(0);
-
-    } catch (finalError) {
-        console.error(`[ERROR] Toutes les tentatives bwip-js ont échoué`);
-        console.error(`[ERROR] Dernière erreur: ${finalError.message}`);
+// Génération directe avec une seule configuration
+bwipjs.toBuffer(options, (err, pngBuffer) => {
+    if (err) {
+        console.error(`[ERROR] Génération bwip-js échouée: ${err.message}`);
         console.error(`[ERROR] Données: ${data}`);
         process.exit(1);
     }
-}
 
-// Lancer la génération
-generateGS1DataMatrix();
+    // Sauvegarder le résultat
+    fs.writeFileSync(outputPath, pngBuffer);
+
+    console.log(`[SUCCESS] GS1 DataMatrix généré avec configuration simple`);
+    console.log(`[SUCCESS] Fichier: ${outputPath} (${pngBuffer.length} bytes)`);
+    console.log(`[SUCCESS] Configuration identique au projet de référence fonctionnel`);
+    console.log(`[SUCCESS] Identifiant AIM attendu: ]d2 (GS1 DataMatrix)`);
+
+    process.exit(0);
+});
 
 // Timeout de sécurité (10 secondes)
 setTimeout(() => {

@@ -144,8 +144,15 @@ def prepare_gs1_content(data, barcode_format):
     Returns:
         str: Données formatées pour le générateur avec séparateurs GS appropriés
     """
-    # Pour DataMatrix GS1, insérer automatiquement les séparateurs GS appropriés
-    if barcode_format in [BarcodeFormat.GS1_DATAMATRIX, BarcodeFormat.GS1_QRCODE]:
+    # NOUVELLE APPROCHE pour GS1 DataMatrix : passer les données brutes à bwip-js
+    # basé sur le projet de référence fonctionnel qui utilise les données telles quelles
+    if barcode_format == BarcodeFormat.GS1_DATAMATRIX:
+        # FIXER: Passer les données brutes à bwip-js (comme le projet de référence)
+        # bwip-js gère lui-même le parsing des AI et l'insertion du FNC1
+        return data  # Données brutes, pas de transformation
+
+    # Pour les autres formats GS1, garder l'ancien comportement
+    elif barcode_format == BarcodeFormat.GS1_QRCODE:
         # Détecter le format d'entrée
         if '(' in data and ')' in data:
             # Format avec parenthèses - parser et reconstruire
