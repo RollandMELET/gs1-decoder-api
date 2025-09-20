@@ -502,12 +502,22 @@ async def generate_barcode_image(request: GenerateRequest):
         if internal_image_format is None:
             raise ValueError(f"Format d'image non supporté pour la génération: {request.image_format.value}")
 
+        # 🚨 CORRECTION CRITIQUE: Forcer use_treepoem=False pour GS1 DataMatrix
+        # Nos logs montrent que treepoem est TOUJOURS utilisé avec use_treepoem=True par défaut
+        # et bypass notre architecture hybride bwip-js qui fonctionne parfaitement en local
+
+        use_treepoem_param = True  # Défaut pour autres formats
+        if internal_barcode_format == GenBarcodeFormat.GS1_DATAMATRIX:
+            use_treepoem_param = False  # FORCER architecture hybride pour GS1 DataMatrix
+            print(f"🎯 [MAIN] GS1_DATAMATRIX détecté - FORCE use_treepoem=False")
+
         barcode_image_bytes = generate_barcode(
             data=request.data,
             barcode_format=internal_barcode_format,
             image_format=internal_image_format,
             width=request.width,
-            height=request.height
+            height=request.height,
+            use_treepoem=use_treepoem_param  # PARAMÈTRE CRITIQUE
         )
         
         mime_types = {
