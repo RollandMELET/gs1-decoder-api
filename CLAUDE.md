@@ -58,8 +58,16 @@ make test-integration     # Architecture hybride
 make test-performance     # Optimisation tailles
 make test-regression      # Non-régression
 
+# 🎯 NOUVEAUX: Tests formats étendus
+make test-formats         # Tests tous formats (QR, Code128, DataMatrix, GS1)
+make test-endpoints       # Tests endpoints (/generate/, /decode/, /parse/, /health)
+
 # 🏥 Monitoring production
-make monitor
+make monitor              # GS1 DataMatrix + formats critiques
+make monitor-all          # Tous formats + endpoints avec métriques JSON
+make monitor-endpoints    # Tests endpoints spécifiques avec détails
+make monitor-performance  # Benchmarks performance avec seuils
+make monitor-performance-concurrent  # Tests charge concurrent
 
 # Legacy tests (anciens)
 python test_api.py
@@ -150,12 +158,14 @@ docker-compose up -d
 
 ### Testing Strategy
 
-**TDD Suite Complète (Nouvelle Architecture)**
+**TDD Suite Complète (Architecture Étendue)**
 - **Tests Critiques** (`tests/unit/test_gs1_datamatrix_core.py`) - 🔴 OBLIGATOIRES avant commit
 - **Tests Intégration** (`tests/integration/`) - Architecture hybride Python ↔ Node.js
 - **Tests Conformité** (`tests/conformity/`) - Standards GS1 et validation ZXing
 - **Tests Performance** (`tests/performance/`) - Optimisation tailles (96.8% réduction)
 - **Tests Régression** (`tests/integration/test_regression.py`) - Non-régression autres formats
+- **🎯 Tests Formats** (`tests/formats/`) - NOUVEAU: QR Code, Code128, DataMatrix, détection
+- **🔗 Tests Endpoints** (`tests/endpoints/`) - NOUVEAU: generate/, decode/, parse/, health/
 
 **Points Critiques Protégés:**
 - ✅ `use_treepoem=False` forcé pour GS1 DataMatrix (architecture hybride)
@@ -169,8 +179,16 @@ docker-compose up -d
 - Production smoke tests (`test-gs1.sh`)
 - Manual testing with sample images in root directory
 
-**Workflow Développeur:**
-1. `make test-critical` avant chaque commit
-2. `make test-all` avant pull request
-3. `make monitor` surveillance production
-4. Point restauration: `v1.3.0-gs1-stable` en cas de régression
+**Workflow Développeur Étendu:**
+1. `make test-critical` avant chaque commit (GS1 DataMatrix bloquant)
+2. `make test-formats` validation formats individuels
+3. `make test-endpoints` validation API complète
+4. `make test-all` avant pull request (suite complète)
+5. `make monitor-all` surveillance production granulaire
+6. Points restauration: `v1.9.0-tdd-complete-service` (service complet) ou `v1.4.0-tdd-complete` (GS1 DataMatrix seul)
+
+**Monitoring Granulaire:**
+- `make monitor` - GS1 DataMatrix critique
+- `make monitor-all` - 6 formats avec métriques JSON
+- `make monitor-endpoints` - 4 endpoints avec détails
+- `make monitor-performance` - Benchmarks avec seuils différenciés

@@ -6,15 +6,17 @@ Microservice pour décoder et générer des codes-barres GS1 (1D/2D), avec parsi
 
 ## ✨ Fonctionnalités
 
-- 🔎 Scan d'images vers codes-barres GS1.
+- 🔎 Scan d'images vers codes-barres GS1 et standard.
 - 🧩 Parsing de chaînes de caractères brutes GS1.
 - 📊 Formatage intelligent des valeurs (dates, décimaux).
 - 🔄 Détection automatique du format du code (QR Code, DataMatrix, etc.).
-- 🖼️ Génération de codes-barres (DataMatrix, QR Code, Code 128).
+- 🖼️ **Génération 6 formats** : GS1 DataMatrix (optimisé 96.8%), GS1 QR Code, GS1-128, QR Code, DataMatrix, Code 128.
 - 📜 Mode `verbose` pour analyse détaillée.
-- 📦 Docker-ready, Coolify-ready.
-- 🔥 Déploiement en un clic.
-- 🩺 Endpoint `/health` pour monitoring.
+- 🛡️ **Suite TDD exhaustive** : Protection anti-régression tous formats.
+- 📊 **Monitoring granulaire** : Surveillance temps réel 6 formats + 4 endpoints.
+- 📦 Docker-ready, production-ready avec CI/CD GitHub Actions.
+- 🔥 Déploiement automatisé avec validation multi-niveau.
+- 🩺 Endpoints monitoring : `/health` + scripts spécialisés.
 - 📚 Documentation interactive via Swagger UI (`/docs`) et Redoc (`/redoc`).
 
 ---
@@ -185,6 +187,10 @@ make test-critical
 # Tests rapides pour développement
 make test-fast
 
+# 🎯 NOUVEAUX: Tests formats étendus
+make test-formats         # Tous formats (QR, Code128, DataMatrix, GS1)
+make test-endpoints       # Endpoints (/generate/, /decode/, /parse/, /health)
+
 # Suite complète
 make test-all
 ```
@@ -200,11 +206,17 @@ make monitor-alert
 
 ### 🛠️ Commandes Utiles
 ```bash
-make help           # Liste toutes les commandes
-make dev            # Mode développement avec reload
-make lint           # Vérification code
-make clean          # Nettoyage
-make info           # Informations système
+make help                    # Liste toutes les commandes
+make dev                     # Mode développement avec reload
+make lint                    # Vérification code
+make clean                   # Nettoyage
+make info                    # Informations système
+
+# Monitoring étendu
+make monitor-all             # 🎯 Monitoring tous formats
+make monitor-endpoints       # 🔗 Monitoring endpoints
+make monitor-performance     # 📈 Benchmark performance
+make monitor-performance-concurrent  # 🚀 Tests concurrent
 ```
 
 ### 🔄 Point de Restauration
@@ -245,19 +257,25 @@ docker run -d -p 8000:8000 gs1-decoder-api
 
 - **TDD et Tests :** `docs/testing/README.md`
 - **Architecture GS1 :** `docs/features/gs1-datamatrix-generation.md`
-- **Point de Restauration :** `RESTORE_POINT.md`
+- **🎯 Service Complet :** `docs/features/service-complet-tdd.md` - NOUVEAU
+- **🔧 Formats Supportés :** `docs/formats/README.md` - NOUVEAU
+- **🛠️ Troubleshooting :** `docs/troubleshooting/README.md` - NOUVEAU
+- **Point de Restauration :** `RESTORE_POINT.md`, `STABLE_POINT_TDD.md`
 - **Configuration Claude Code :** `CLAUDE.md`
+- **Rapport Final :** `FINAL_VALIDATION_REPORT.md`
 
 ---
 
 ## 🔒 Sécurité et Qualité
 
-- ✅ **Suite TDD complète** avec 4 tests critiques obligatoires
-- ✅ **CI/CD GitHub Actions** avec validation multi-version
-- ✅ **Pre-commit hooks** avec tests automatiques
-- ✅ **Monitoring production** temps réel
+- ✅ **Suite TDD exhaustive** : 30 fichiers tests (4 critiques bloquants + formats + endpoints)
+- ✅ **CI/CD GitHub Actions étendu** : 7 jobs validation progressive (critique → standard → performance)
+- ✅ **Pre-commit hooks** avec tests automatiques tous formats
+- ✅ **Monitoring granulaire** : 6 scripts surveillance (formats + endpoints + performance)
 - ✅ **Optimisation 96.8%** tailles fichiers GS1 DataMatrix (500-700 bytes vs 16k-23k)
-- ✅ **Conformité GS1** complète avec identifier ]d2
+- ✅ **Conformité GS1** complète avec identifier ]d2 + architecture hybride
+- ✅ **Protection anti-régression** : Tests bloquent commits dangereux automatiquement
+- ✅ **Points restauration** : Tags multiples (v1.9.0-tdd-complete-service, v1.4.0-tdd-complete)
 
 ---
 
