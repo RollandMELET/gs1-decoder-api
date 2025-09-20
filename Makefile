@@ -54,7 +54,7 @@ test-coverage: ## 📊 Tests avec couverture
 
 test-nodejs: ## 🟢 Test du script Node.js
 	@echo "🟢 Test script Node.js..."
-	node generate_gs1_bwip.js "(01)12345678901234" "test_makefile.png"
+	node generate_gs1_bwip.js "(01)03760423190005" "test_makefile.png"
 	@ls -la test_makefile.png
 	@file test_makefile.png
 	@rm -f test_makefile.png

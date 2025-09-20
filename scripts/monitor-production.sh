@@ -57,7 +57,7 @@ log "🧪 Test génération GS1 simple..."
 simple_response=$(curl -s -w "%{http_code}" -X POST \
   "$API_URL/generate/" \
   -H "Content-Type: application/json" \
-  -d '{"data": "(01)12345678901234", "barcode_format": "gs1_datamatrix"}' \
+  -d '{"data": "(01)03760423190005", "barcode_format": "gs1_datamatrix"}' \
   -o simple_test.png || echo "000")
 
 if [ "$simple_response" = "200" ]; then
@@ -107,7 +107,7 @@ start_time=$(date +%s%N)
 response_time_test=$(curl -s -w "%{http_code}" -X POST \
   "$API_URL/generate/" \
   -H "Content-Type: application/json" \
-  -d '{"data": "(01)12345678901234", "barcode_format": "gs1_datamatrix"}' \
+  -d '{"data": "(01)03760423190005", "barcode_format": "gs1_datamatrix"}' \
   -o /dev/null || echo "000")
 end_time=$(date +%s%N)
 
@@ -131,7 +131,7 @@ log "🛡️ Test non-régression autres formats..."
 qr_response=$(curl -s -w "%{http_code}" -X POST \
   "$API_URL/generate/" \
   -H "Content-Type: application/json" \
-  -d '{"data": "Test QR Code", "barcode_format": "qr_code"}' \
+  -d '{"data": "Test QR Code Data", "barcode_format": "qr_code"}' \
   -o /dev/null || echo "000")
 
 if [ "$qr_response" = "200" ]; then
@@ -144,7 +144,7 @@ fi
 dm_response=$(curl -s -w "%{http_code}" -X POST \
   "$API_URL/generate/" \
   -H "Content-Type: application/json" \
-  -d '{"data": "Standard DataMatrix", "barcode_format": "datamatrix"}' \
+  -d '{"data": "Standard DataMatrix Data", "barcode_format": "datamatrix"}' \
   -o /dev/null || echo "000")
 
 if [ "$dm_response" = "200" ]; then
