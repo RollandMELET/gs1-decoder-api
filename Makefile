@@ -60,9 +60,25 @@ test-nodejs: ## 🟢 Test du script Node.js
 	@rm -f test_makefile.png
 	@echo "✅ Script Node.js fonctionne"
 
-monitor: ## 🏥 Monitoring API production
+monitor: ## 🏥 Monitoring API production (formats critiques)
 	@echo "🏥 Monitoring API production..."
 	./scripts/monitor-production.sh
+
+monitor-all: ## 🎯 Monitoring tous formats + endpoints
+	@echo "🎯 Monitoring complet..."
+	./scripts/monitor-all-formats.sh
+
+monitor-endpoints: ## 🔗 Monitoring endpoints spécifique
+	@echo "🔗 Monitoring endpoints..."
+	./scripts/monitor-endpoints.sh
+
+monitor-performance: ## 📈 Benchmark performance
+	@echo "📈 Benchmark performance..."
+	./scripts/performance-benchmark.sh
+
+monitor-performance-concurrent: ## 🚀 Benchmark concurrent
+	@echo "🚀 Benchmark concurrent..."
+	./scripts/performance-benchmark.sh --concurrent
 
 monitor-alert: ## 🚨 Monitoring avec alertes
 	@echo "🚨 Monitoring avec alertes..."

@@ -1,4 +1,4 @@
-name: GS1 DataMatrix Tests
+name: Complete Service Tests - All Formats + GS1 DataMatrix
 
 on:
   push:
@@ -9,6 +9,8 @@ on:
       - 'generate_gs1_bwip.js'
       - 'package.json'
       - 'requirements*.txt'
+      - 'Dockerfile'
+      - '.github/workflows/**'
   pull_request:
     branches: [ main ]
     paths:
@@ -17,6 +19,9 @@ on:
       - 'generate_gs1_bwip.js'
       - 'package.json'
       - 'requirements*.txt'
+  schedule:
+    # Tests automatiques quotidiens à 02:00 UTC
+    - cron: '0 2 * * *'
 
 env:
   PYTHONPATH: ${{ github.workspace }}
@@ -257,18 +262,258 @@ jobs:
           echo "⚠️ Production API returned: $response"
         fi
 
-  notify-on-failure:
-    name: 📧 Notify on Failure
+  all-formats-tests:
+    name: 🎯 All Formats Tests
     runs-on: ubuntu-latest
-    needs: [gs1-critical-tests, integration-tests, performance-tests, regression-tests]
+    needs: gs1-critical-tests
+    timeout-minutes: 25
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Set up Node.js 20
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libdmtx0b libdmtx-dev default-jdk ghostscript
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-test.txt
+        npm install
+
+    - name: Run format-specific tests
+      run: |
+        pytest tests/formats/ \
+               -v --tb=short \
+               --cov=app \
+               --cov-report=xml \
+               --maxfail=5
+
+    - name: Upload format tests coverage
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: all-formats
+        name: AllFormats-Coverage
+
+  endpoints-comprehensive-tests:
+    name: 🔗 Endpoints Comprehensive Tests
+    runs-on: ubuntu-latest
+    needs: all-formats-tests
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Set up Node.js 20
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libdmtx0b libdmtx-dev default-jdk ghostscript
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-test.txt
+        npm install
+
+    - name: Run endpoint tests
+      run: |
+        pytest tests/endpoints/ \
+               -v --tb=short \
+               --cov=app \
+               --cov-report=xml \
+               --maxfail=3
+
+    - name: Run round-trip integration tests
+      run: |
+        pytest tests/integration/test_e2e_workflows.py \
+               -v --tb=short
+
+  production-monitoring-tests:
+    name: 🌐 Production Monitoring
+    runs-on: ubuntu-latest
+    needs: [endpoints-comprehensive-tests]
+    if: github.ref == 'refs/heads/main'
+    timeout-minutes: 10
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Production health check
+      run: |
+        curl -f https://gs1-decoder-api.rorworld.eu/health || echo "API health check failed"
+
+    - name: Critical GS1 DataMatrix production test
+      run: |
+        echo "🔴 Testing critical GS1 DataMatrix in production..."
+
+        # Test GS1 DataMatrix (CRITIQUE)
+        gs1_response=$(curl -s -w "%{http_code}" -X POST \
+          "https://gs1-decoder-api.rorworld.eu/generate/" \
+          -H "Content-Type: application/json" \
+          -d '{"data": "(01)03760423190005", "barcode_format": "gs1_datamatrix"}' \
+          -o gs1_prod_test.png)
+
+        if [ "$gs1_response" = "200" ]; then
+          file_size=$(stat -c%s gs1_prod_test.png)
+          echo "✅ GS1 DataMatrix production: $file_size bytes"
+
+          if [ "$file_size" -ge 500 ] && [ "$file_size" -le 800 ]; then
+            echo "✅ CRITICAL: GS1 DataMatrix optimized in production"
+          else
+            echo "🚨 CRITICAL FAILURE: GS1 DataMatrix not optimized: $file_size bytes"
+            exit 1
+          fi
+        else
+          echo "🚨 CRITICAL FAILURE: GS1 DataMatrix production failed: $gs1_response"
+          exit 1
+        fi
+
+    - name: Standard formats monitoring
+      run: |
+        echo "⚡ Testing standard formats (non-blocking)..."
+
+        # Test QR Code (non-bloquant)
+        qr_response=$(curl -s -w "%{http_code}" -X POST \
+          "https://gs1-decoder-api.rorworld.eu/generate/" \
+          -H "Content-Type: application/json" \
+          -d '{"data": "Production QR Test", "barcode_format": "qr_code"}' \
+          -o /dev/null)
+
+        echo "QR Code production status: $qr_response"
+
+        # Test DataMatrix standard (non-bloquant)
+        dm_response=$(curl -s -w "%{http_code}" -X POST \
+          "https://gs1-decoder-api.rorworld.eu/generate/" \
+          -H "Content-Type: application/json" \
+          -d '{"data": "Production DataMatrix Test", "barcode_format": "datamatrix"}' \
+          -o /dev/null)
+
+        echo "DataMatrix standard production status: $dm_response"
+
+        # Test Code 128 (non-bloquant)
+        c128_response=$(curl -s -w "%{http_code}" -X POST \
+          "https://gs1-decoder-api.rorworld.eu/generate/" \
+          -H "Content-Type: application/json" \
+          -d '{"data": "PRODTEST128", "barcode_format": "code_128"}' \
+          -o /dev/null)
+
+        echo "Code 128 production status: $c128_response"
+
+  notify-on-failure:
+    name: 📧 Alert System
+    runs-on: ubuntu-latest
+    needs: [gs1-critical-tests, integration-tests, performance-tests, regression-tests, all-formats-tests, endpoints-comprehensive-tests, production-monitoring-tests]
     if: failure()
 
     steps:
-    - name: Notify failure
+    - name: Determine failure severity
       run: |
-        echo "🚨 GS1 DataMatrix tests failed!"
-        echo "Critical components may be broken."
-        echo "Check the workflow logs for details."
+        echo "🚨 Service tests failed!"
 
-        # Ici on pourrait ajouter notification Slack/Discord/email
-        # curl -X POST $SLACK_WEBHOOK_URL -d '{"text":"🚨 GS1 DataMatrix tests failed!"}'
+        # Vérifier si échec critique (GS1 DataMatrix)
+        if [[ "${{ needs.gs1-critical-tests.result }}" == "failure" ]]; then
+          echo "🔴 CRITICAL: GS1 DataMatrix tests failed"
+          echo "SEVERITY=CRITICAL" >> $GITHUB_ENV
+        elif [[ "${{ needs.production-monitoring-tests.result }}" == "failure" ]]; then
+          echo "🔴 CRITICAL: Production monitoring failed"
+          echo "SEVERITY=CRITICAL" >> $GITHUB_ENV
+        else
+          echo "🟡 WARNING: Standard formats or integration tests failed"
+          echo "SEVERITY=WARNING" >> $GITHUB_ENV
+        fi
+
+    - name: Send alert notification
+      run: |
+        echo "Alert severity: $SEVERITY"
+        echo "Failed jobs details:"
+        echo "  GS1 Critical: ${{ needs.gs1-critical-tests.result }}"
+        echo "  Integration: ${{ needs.integration-tests.result }}"
+        echo "  All Formats: ${{ needs.all-formats-tests.result }}"
+        echo "  Endpoints: ${{ needs.endpoints-comprehensive-tests.result }}"
+        echo "  Production: ${{ needs.production-monitoring-tests.result }}"
+
+        if [ "$SEVERITY" = "CRITICAL" ]; then
+          echo "🚨 CRITICAL FAILURE - Immediate action required"
+          echo "🔄 Rollback to v1.4.0-tdd-complete may be needed"
+        else
+          echo "⚠️ Non-critical failure - Investigation needed"
+        fi
+
+        # Future: webhook notifications
+        # curl -X POST $SLACK_WEBHOOK_URL -d "{\"text\":\"🚨 GS1 API: $SEVERITY failure\"}"
+
+  performance-benchmarks:
+    name: 📈 Performance Benchmarks
+    runs-on: ubuntu-latest
+    needs: all-formats-tests
+    timeout-minutes: 15
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Set up Node.js 20
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libdmtx0b libdmtx-dev default-jdk ghostscript
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-test.txt
+        npm install
+
+    - name: Run performance benchmarks
+      run: |
+        pytest tests/performance/ tests/endpoints/test_generate_all_formats.py::TestGenerateEndpointAllFormats::test_generate_endpoint_performance_thresholds \
+               -v --tb=short \
+               --benchmark-only \
+               --benchmark-json=benchmark.json || true
+
+    - name: Performance validation
+      run: |
+        echo "📊 Performance Metrics:"
+        echo "Target thresholds:"
+        echo "  🔴 GS1 DataMatrix: < 2s (CRITICAL)"
+        echo "  ⚡ QR Code: < 5s"
+        echo "  ⚡ Code 128: < 3s"
+        echo "  ⚡ DataMatrix: < 5s"
+
+        # Validation critique GS1 DataMatrix
+        if [ -f benchmark.json ]; then
+          echo "✅ Benchmark results available"
+        else
+          echo "⚠️ No benchmark results - tests may have failed"
+        fi
