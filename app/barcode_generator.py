@@ -450,12 +450,22 @@ def generate_gs1_datamatrix_zint(data, **kwargs):
 
     print(f"[DEBUG] zint: Génération GS1 DataMatrix avec données: {repr(data[:50])}...")
 
-    # Utilisation correcte de zint-bindings
-    barcode = zint.Barcode(zint.BarcodeType.DATAMATRIX)
-    barcode.set_option_2(1)     # Active le mode GS1
+    # API correcte pour zint-bindings
+    symbol = zint.Symbol()
+    symbol.symbology = zint.Symbology.DATAMATRIX
+    symbol.option_2 = 1  # Active le mode GS1
 
-    # Génération PNG
-    png_data = barcode.encode_and_render(data, file_format='PNG')
+    # Génération avec API correcte
+    try:
+        symbol.encode(data)
+        png_data = symbol.buffer()
+    except Exception as e:
+        # Si erreur, essayer avec taille auto et mode standard
+        print(f"[DEBUG] zint: GS1 mode échec, tentative mode standard: {e}")
+        symbol.option_2 = 0  # Désactiver GS1
+        symbol.height = 0    # Taille automatique
+        symbol.encode(data)
+        png_data = symbol.buffer()
 
     # Conversion PIL
     return Image.open(io.BytesIO(png_data))

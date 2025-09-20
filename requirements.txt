@@ -8,3 +8,4 @@ python-barcode>=0.13.1
 treepoem>=3.17.0
 zint-bindings>=1.0.0
 JPype1
+setuptools>=60.0.0
