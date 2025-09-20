@@ -39,6 +39,9 @@ python test_generate.py
 
 # Test against production API
 ./test-gs1.sh
+
+# Production API URL
+# https://gs1-decoder-api.rorworld.eu/
 ```
 
 ### Docker
@@ -115,6 +118,7 @@ docker-compose up -d
 - Handles both development (venv) and containerized deployments
 - Environment variables: Java classpath, temporary directories
 - Health check endpoint for monitoring
+- **Production API:** https://gs1-decoder-api.rorworld.eu/
 
 ### Testing Strategy
 
