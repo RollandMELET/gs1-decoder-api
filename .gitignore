@@ -3,3 +3,8 @@
 .DS_Store
 app/.DS_Store
 .DS_Store
+__pycache__/
+*.pyc
+.pytest_cache/
+htmlcov/
+.coverage

@@ -1,0 +1,27 @@
+# Dépendances pour les tests
+
+# Framework de tests
+pytest>=7.0.0
+pytest-cov>=4.0.0
+pytest-mock>=3.10.0
+pytest-asyncio>=0.21.0
+
+# Mocking et fixtures
+responses>=0.23.0
+freezegun>=1.2.0
+
+# Performance et monitoring
+pytest-benchmark>=4.0.0
+psutil>=5.9.0
+
+# Validation et assertion
+pytest-html>=3.1.0
+pytest-json-report>=1.5.0
+
+# Outils de développement
+black>=23.0.0
+flake8>=6.0.0
+mypy>=1.0.0
+
+# Intégration continue
+tox>=4.0.0

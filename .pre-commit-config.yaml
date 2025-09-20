@@ -1,0 +1,96 @@
+# Pre-commit hooks pour validation avant commit
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.4.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-json
+      - id: check-merge-conflict
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+
+  - repo: https://github.com/psf/black
+    rev: 23.3.0
+    hooks:
+      - id: black
+        language_version: python3
+        files: ^(app|tests)/.*\.py$
+
+  - repo: https://github.com/pycqa/flake8
+    rev: 6.0.0
+    hooks:
+      - id: flake8
+        files: ^(app|tests)/.*\.py$
+        args: ['--max-line-length=100', '--ignore=E203,W503']
+
+  - repo: local
+    hooks:
+      - id: gs1-critical-tests
+        name: 🔴 GS1 Critical Tests
+        entry: pytest
+        language: python
+        files: ^(app|tests)/.*\.py$
+        args:
+          - tests/unit/test_gs1_datamatrix_core.py::TestGS1DataMatrixCore::test_use_treepoem_false_for_gs1_datamatrix
+          - tests/unit/test_gs1_datamatrix_core.py::TestGS1DataMatrixCore::test_bwipjs_priority_in_hybrid_architecture
+          - tests/conformity/test_gs1_standards.py::TestGS1Standards::test_gs1_aim_identifier_validation
+          - tests/performance/test_file_size_optimization.py::TestFileSizeOptimization::test_file_size_optimization_simple
+          - -v
+          - --tb=short
+          - --maxfail=1
+        pass_filenames: false
+        always_run: false
+
+      - id: nodejs-script-test
+        name: 🟢 Node.js Script Test
+        entry: node
+        language: node
+        files: ^generate_gs1_bwip\.js$
+        args:
+          - generate_gs1_bwip.js
+          - "(01)12345678901234"
+          - "test_precommit.png"
+        pass_filenames: false
+
+      - id: clean-test-files
+        name: 🧹 Clean Test Files
+        entry: rm
+        language: system
+        args: ['-f', 'test_precommit.png']
+        pass_filenames: false
+        always_run: true
+
+      - id: check-package-json
+        name: 📦 Check package.json
+        entry: npm
+        language: node
+        args: ['ls']
+        files: ^package\.json$
+        pass_filenames: false
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.3.0
+    hooks:
+      - id: mypy
+        files: ^app/.*\.py$
+        args: ['--ignore-missing-imports', '--strict-optional']
+        additional_dependencies: [types-requests, types-Pillow]
+
+# Configuration globale
+default_stages: [commit]
+fail_fast: true
+
+# Exclusions
+exclude: |
+  (?x)^(
+    .*/__pycache__/.*|
+    .*\.pyc$|
+    .*/node_modules/.*|
+    .*/venv/.*|
+    .*/env/.*|
+    .*\.png$|
+    .*\.jpg$|
+    .*\.jpeg$
+  )$

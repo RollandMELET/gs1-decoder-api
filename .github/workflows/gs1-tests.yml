@@ -1,0 +1,274 @@
+name: GS1 DataMatrix Tests
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'app/**'
+      - 'tests/**'
+      - 'generate_gs1_bwip.js'
+      - 'package.json'
+      - 'requirements*.txt'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'app/**'
+      - 'tests/**'
+      - 'generate_gs1_bwip.js'
+      - 'package.json'
+      - 'requirements*.txt'
+
+env:
+  PYTHONPATH: ${{ github.workspace }}
+
+jobs:
+  gs1-critical-tests:
+    name: 🔴 Critical GS1 Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    strategy:
+      matrix:
+        python-version: ['3.9', '3.10', '3.11']
+        node-version: ['18', '20']
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Set up Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+
+    - name: Cache Python dependencies
+      uses: actions/cache@v3
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements*.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libdmtx0b libdmtx-dev
+        sudo apt-get install -y default-jdk
+
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-test.txt
+
+    - name: Install Node.js dependencies
+      run: |
+        npm install
+
+    - name: Verify bwip-js installation
+      run: |
+        node -e "console.log('bwip-js version:', require('bwip-js/package.json').version)"
+
+    - name: Run critical GS1 tests only
+      run: |
+        pytest tests/unit/test_gs1_datamatrix_core.py \
+               tests/conformity/test_gs1_standards.py \
+               tests/performance/test_file_size_optimization.py \
+               -v --tb=short \
+               -m "critical" \
+               --cov=app \
+               --cov-report=xml \
+               --cov-fail-under=90
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+        flags: critical-gs1
+        name: GS1-Critical-${{ matrix.python-version }}-${{ matrix.node-version }}
+
+  integration-tests:
+    name: 🔗 Integration Tests
+    runs-on: ubuntu-latest
+    needs: gs1-critical-tests
+    timeout-minutes: 20
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Set up Node.js 20
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libdmtx0b libdmtx-dev default-jdk
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-test.txt
+        npm install
+
+    - name: Run integration tests
+      run: |
+        pytest tests/integration/ \
+               -v --tb=short \
+               --cov=app \
+               --cov-report=xml \
+               --maxfail=3
+
+    - name: Test local script execution
+      run: |
+        node generate_gs1_bwip.js "(01)12345678901234" test_ci.png
+        ls -la test_ci.png
+        file test_ci.png
+
+  performance-tests:
+    name: ⚡ Performance Tests
+    runs-on: ubuntu-latest
+    needs: integration-tests
+    timeout-minutes: 10
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Set up Node.js 20
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libdmtx0b libdmtx-dev
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-test.txt
+        npm install
+
+    - name: Run performance tests
+      run: |
+        pytest tests/performance/ \
+               -v --tb=short \
+               --benchmark-only \
+               --benchmark-json=benchmark.json
+
+    - name: Store benchmark results
+      uses: benchmark-action/github-action-benchmark@v1
+      with:
+        tool: 'pytest'
+        output-file-path: benchmark.json
+        github-token: ${{ secrets.GITHUB_TOKEN }}
+        auto-push: true
+
+  regression-tests:
+    name: 🛡️ Regression Tests
+    runs-on: ubuntu-latest
+    needs: gs1-critical-tests
+    timeout-minutes: 15
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.10'
+
+    - name: Set up Node.js 20
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20'
+        cache: 'npm'
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libdmtx0b libdmtx-dev
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install -r requirements-test.txt
+        npm install
+
+    - name: Run regression tests
+      run: |
+        pytest tests/integration/test_regression.py \
+               -v --tb=short \
+               --cov=app \
+               --cov-report=xml
+
+  production-api-test:
+    name: 🌐 Production API Test
+    runs-on: ubuntu-latest
+    needs: [integration-tests, regression-tests]
+    if: github.ref == 'refs/heads/main'
+    timeout-minutes: 5
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Test production API health
+      run: |
+        curl -f https://gs1-decoder-api.rorworld.eu/health || echo "API not available"
+
+    - name: Test production GS1 generation (if available)
+      run: |
+        response=$(curl -s -w "%{http_code}" -X POST \
+          "https://gs1-decoder-api.rorworld.eu/generate/" \
+          -H "Content-Type: application/json" \
+          -d '{"data": "(01)12345678901234", "barcode_format": "gs1_datamatrix"}' \
+          -o test_prod.png)
+
+        if [ "$response" = "200" ]; then
+          echo "✅ Production API working"
+          file_size=$(stat -c%s test_prod.png)
+          echo "File size: $file_size bytes"
+
+          # Vérifier taille optimisée
+          if [ "$file_size" -gt 500 ] && [ "$file_size" -lt 800 ]; then
+            echo "✅ File size optimized: $file_size bytes"
+          else
+            echo "⚠️ File size not optimized: $file_size bytes"
+          fi
+        else
+          echo "⚠️ Production API returned: $response"
+        fi
+
+  notify-on-failure:
+    name: 📧 Notify on Failure
+    runs-on: ubuntu-latest
+    needs: [gs1-critical-tests, integration-tests, performance-tests, regression-tests]
+    if: failure()
+
+    steps:
+    - name: Notify failure
+      run: |
+        echo "🚨 GS1 DataMatrix tests failed!"
+        echo "Critical components may be broken."
+        echo "Check the workflow logs for details."
+
+        # Ici on pourrait ajouter notification Slack/Discord/email
+        # curl -X POST $SLACK_WEBHOOK_URL -d '{"text":"🚨 GS1 DataMatrix tests failed!"}'
