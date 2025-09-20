@@ -348,86 +348,44 @@ def generate_gs1_datamatrix_bwipjs(data, **kwargs):
     if not BWIPJS_AVAILABLE:
         raise ImportError("bwip-js non disponible - Node.js ou script manquant")
 
-    print(f"[DEBUG] bwip-js CORRIGÉ: Génération GS1 DataMatrix avec données: {repr(data[:50])}...")
-
     import subprocess
     import tempfile
 
     with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
         try:
-            # Commande Node.js SIMPLIFIÉE pour générer le GS1 DataMatrix
+            # Commande Node.js pour générer le GS1 DataMatrix
             cmd = [
                 'node',
                 '/app/generate_gs1_bwip.js',
-                data,  # Données brutes (pas de transformation)
+                data,
                 tmp.name
             ]
 
-            print(f"[DEBUG] bwip-js CORRIGÉ: Exécution commande: {' '.join(cmd)}")
+            # Exécution subprocess optimisée
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                timeout=30,
+                cwd='/app',
+                check=False,
+                shell=False
+            )
 
-            # 🚨 SUBPROCESS CRITIQUE avec logs ultra-détaillés
-            print(f"[DIAGNOSTIC SUBPROCESS] 🚀 Lancement subprocess Node.js")
-            print(f"[DIAGNOSTIC SUBPROCESS] Commande: {' '.join(cmd)}")
-            print(f"[DIAGNOSTIC SUBPROCESS] CWD: /app")
-            print(f"[DIAGNOSTIC SUBPROCESS] Timeout: 30s")
+            if result.returncode != 0:
+                raise Exception(f"bwip-js subprocess échec (code {result.returncode}): {result.stderr}")
 
-            # Exécution avec check=True et capture complète (basé sur recherches web)
-            try:
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    timeout=30,
-                    cwd='/app',
-                    check=False,  # On gère manuellement pour debug complet
-                    shell=False   # Recommandé pour Docker
-                )
-
-                print(f"[DIAGNOSTIC SUBPROCESS] ✅ Subprocess terminé")
-                print(f"[DIAGNOSTIC SUBPROCESS] Code retour: {result.returncode}")
-                print(f"[DIAGNOSTIC SUBPROCESS] Stdout complet: {repr(result.stdout)}")
-                print(f"[DIAGNOSTIC SUBPROCESS] Stderr complet: {repr(result.stderr)}")
-
-                if result.returncode != 0:
-                    print(f"[DIAGNOSTIC SUBPROCESS] 💥 ÉCHEC subprocess (returncode={result.returncode})")
-                    print(f"[DIAGNOSTIC SUBPROCESS] Erreur détaillée: {result.stderr}")
-                    raise Exception(f"bwip-js subprocess échec (code {result.returncode}): {result.stderr}")
-                else:
-                    print(f"[DIAGNOSTIC SUBPROCESS] ✅ Subprocess SUCCÈS (returncode=0)")
-
-            except subprocess.TimeoutExpired as e:
-                print(f"[DIAGNOSTIC SUBPROCESS] ⏰ TIMEOUT subprocess: {e}")
-                raise Exception(f"bwip-js subprocess timeout: {e}")
-            except Exception as e:
-                print(f"[DIAGNOSTIC SUBPROCESS] 💥 EXCEPTION subprocess: {type(e).__name__}: {e}")
-                raise
-
-            # Vérification détaillée du fichier généré
-            print(f"[DIAGNOSTIC SUBPROCESS] 📁 Vérification fichier généré: {tmp.name}")
-            file_exists = os.path.exists(tmp.name)
-            file_size = os.path.getsize(tmp.name) if file_exists else 0
-            print(f"[DIAGNOSTIC SUBPROCESS] - Fichier existe: {file_exists}")
-            print(f"[DIAGNOSTIC SUBPROCESS] - Taille fichier: {file_size} bytes")
-
-            if not file_exists or file_size == 0:
-                print(f"[DIAGNOSTIC SUBPROCESS] 💥 ÉCHEC: Fichier PNG invalide ou vide")
-                raise Exception(f"bwip-js n'a pas généré de fichier PNG valide (existe={file_exists}, taille={file_size})")
+            # Vérifier que le fichier a été créé
+            if not os.path.exists(tmp.name) or os.path.getsize(tmp.name) == 0:
+                raise Exception("bwip-js n'a pas généré de fichier PNG valide")
 
             # Charger l'image générée
-            print(f"[DIAGNOSTIC SUBPROCESS] 🖼️ Chargement image PNG")
-            try:
-                img = Image.open(tmp.name)
-                print(f"[DIAGNOSTIC SUBPROCESS] 🎉 SUCCESS: Image chargée - Taille: {img.size}, Mode: {img.mode}")
-                return img
-            except Exception as e:
-                print(f"[DIAGNOSTIC SUBPROCESS] 💥 ÉCHEC chargement image: {e}")
-                raise Exception(f"Échec chargement image bwip-js: {e}")
+            img = Image.open(tmp.name)
+            return img
 
-        except subprocess.TimeoutExpired as e:
-            print(f"[DIAGNOSTIC SUBPROCESS] ⏰ TIMEOUT subprocess après 30s: {e}")
+        except subprocess.TimeoutExpired:
             raise Exception("bwip-js timeout - génération trop longue")
         except Exception as e:
-            print(f"[DIAGNOSTIC SUBPROCESS] 💥 EXCEPTION générale: {type(e).__name__}: {e}")
             raise e
         finally:
             # Nettoyage du fichier temporaire
@@ -563,91 +521,37 @@ def generate_gs1_datamatrix_hybrid(data, **kwargs):
     """
     errors = []
 
-    print(f"\n🎯 [DIAGNOSTIC HYBRIDE] === DÉBUT ARCHITECTURE HYBRIDE ===")
-    print(f"[DIAGNOSTIC HYBRIDE] Données: {repr(data[:50])}...")
-    print(f"[DIAGNOSTIC HYBRIDE] Status générateurs:")
-    print(f"[DIAGNOSTIC HYBRIDE] 1. BWIPJS_AVAILABLE: {BWIPJS_AVAILABLE}")
-    print(f"[DIAGNOSTIC HYBRIDE] 2. TREEPOEM_AVAILABLE: {TREEPOEM_AVAILABLE}")
-    print(f"[DIAGNOSTIC HYBRIDE] 3. ZINT_AVAILABLE: {ZINT_AVAILABLE}")
-    print(f"[DIAGNOSTIC HYBRIDE] 4. DMTXWRITE_AVAILABLE: {DMTXWRITE_AVAILABLE}")
-
-    # PRIORITÉ 1: bwip-js (CRITIQUE - notre solution qui fonctionne en local)
-    print(f"\n[DIAGNOSTIC HYBRIDE] 🚀 PRIORITÉ 1: bwip-js")
+    # PRIORITÉ 1: bwip-js (solution validée)
     if BWIPJS_AVAILABLE:
-        print(f"[DIAGNOSTIC HYBRIDE] ✅ bwip-js disponible - LANCEMENT")
         try:
-            result = generate_gs1_datamatrix_bwipjs(data, **kwargs)
-            print(f"[DIAGNOSTIC HYBRIDE] 🎉 SUCCESS bwip-js - Taille: {result.size}")
-            print(f"[DIAGNOSTIC HYBRIDE] === FIN ARCHITECTURE HYBRIDE (bwip-js) ===\n")
-            return result
+            return generate_gs1_datamatrix_bwipjs(data, **kwargs)
         except Exception as e:
-            error_msg = f"bwip-js: {type(e).__name__}: {e}"
-            errors.append(error_msg)
-            print(f"[DIAGNOSTIC HYBRIDE] 💥 ÉCHEC bwip-js: {error_msg}")
-            import traceback
-            print(f"[DIAGNOSTIC HYBRIDE] Stack trace bwip-js:")
-            traceback.print_exc()
-    else:
-        print(f"[DIAGNOSTIC HYBRIDE] ❌ bwip-js NON DISPONIBLE")
-        errors.append("bwip-js: Non disponible (BWIPJS_AVAILABLE=False)")
+            errors.append(f"bwip-js: {e}")
+            print(f"[DEBUG] bwip-js échoué: {e}")
 
-    # PRIORITÉ 2: treepoem
-    print(f"\n[DIAGNOSTIC HYBRIDE] 🔄 PRIORITÉ 2: treepoem")
+    # PRIORITÉ 2: treepoem (fallback)
     if TREEPOEM_AVAILABLE:
-        print(f"[DIAGNOSTIC HYBRIDE] ✅ treepoem disponible - LANCEMENT")
         try:
-            result = generate_gs1_datamatrix_treepoem(data, **kwargs)
-            print(f"[DIAGNOSTIC HYBRIDE] ✅ SUCCESS treepoem - Taille: {result.size}")
-            print(f"[DIAGNOSTIC HYBRIDE] === FIN ARCHITECTURE HYBRIDE (treepoem) ===\n")
-            return result
+            return generate_gs1_datamatrix_treepoem(data, **kwargs)
         except Exception as e:
-            error_msg = f"treepoem: {type(e).__name__}: {e}"
-            errors.append(error_msg)
-            print(f"[DIAGNOSTIC HYBRIDE] 💥 ÉCHEC treepoem: {error_msg}")
-    else:
-        print(f"[DIAGNOSTIC HYBRIDE] ❌ treepoem NON DISPONIBLE")
-        errors.append("treepoem: Non disponible")
+            errors.append(f"treepoem: {e}")
+            print(f"[DEBUG] treepoem échoué: {e}")
 
-    # PRIORITÉ 3: zint-python
-    print(f"\n[DIAGNOSTIC HYBRIDE] 🔄 PRIORITÉ 3: zint")
+    # PRIORITÉ 3: zint (alternatif)
     if ZINT_AVAILABLE:
-        print(f"[DIAGNOSTIC HYBRIDE] ✅ zint disponible - LANCEMENT")
         try:
-            result = generate_gs1_datamatrix_zint(data, **kwargs)
-            print(f"[DIAGNOSTIC HYBRIDE] ✅ SUCCESS zint - Taille: {result.size}")
-            print(f"[DIAGNOSTIC HYBRIDE] === FIN ARCHITECTURE HYBRIDE (zint) ===\n")
-            return result
+            return generate_gs1_datamatrix_zint(data, **kwargs)
         except Exception as e:
-            error_msg = f"zint: {type(e).__name__}: {e}"
-            errors.append(error_msg)
-            print(f"[DIAGNOSTIC HYBRIDE] 💥 ÉCHEC zint: {error_msg}")
-    else:
-        print(f"[DIAGNOSTIC HYBRIDE] ❌ zint NON DISPONIBLE")
-        errors.append("zint: Non disponible")
+            errors.append(f"zint: {e}")
+            print(f"[DEBUG] zint échoué: {e}")
 
     # PRIORITÉ 4: dmtxwrite système (dernier recours)
-    print(f"\n[DIAGNOSTIC HYBRIDE] 🔄 PRIORITÉ 4: dmtxwrite")
     if DMTXWRITE_AVAILABLE:
-        print(f"[DIAGNOSTIC HYBRIDE] ✅ dmtxwrite disponible - LANCEMENT")
         try:
-            result = generate_gs1_datamatrix_dmtxwrite(data, **kwargs)
-            print(f"[DIAGNOSTIC HYBRIDE] ✅ SUCCESS dmtxwrite - Taille: {result.size}")
-            print(f"[DIAGNOSTIC HYBRIDE] === FIN ARCHITECTURE HYBRIDE (dmtxwrite) ===\n")
-            return result
+            return generate_gs1_datamatrix_dmtxwrite(data, **kwargs)
         except Exception as e:
-            error_msg = f"dmtxwrite: {type(e).__name__}: {e}"
-            errors.append(error_msg)
-            print(f"[DIAGNOSTIC HYBRIDE] 💥 ÉCHEC dmtxwrite: {error_msg}")
-    else:
-        print(f"[DIAGNOSTIC HYBRIDE] ❌ dmtxwrite NON DISPONIBLE")
-        errors.append("dmtxwrite: Non disponible")
-
-    # ÉCHEC TOTAL - tous les générateurs ont échoué
-    print(f"\n[DIAGNOSTIC HYBRIDE] 💀 ÉCHEC TOTAL - Tous les générateurs ont échoué")
-    print(f"[DIAGNOSTIC HYBRIDE] 📋 Résumé des erreurs:")
-    for i, error in enumerate(errors, 1):
-        print(f"[DIAGNOSTIC HYBRIDE]   {i}. {error}")
-    print(f"[DIAGNOSTIC HYBRIDE] === FIN ARCHITECTURE HYBRIDE (ÉCHEC) ===\n")
+            errors.append(f"dmtxwrite: {e}")
+            print(f"[DEBUG] dmtxwrite échoué: {e}")
 
     # PAS de fallback pylibdmtx pour GS1 - il ne peut pas générer de vrai GS1 DataMatrix
     raise Exception(f"Tous les générateurs GS1 DataMatrix spécialisés ont échoué: {errors}. pylibdmtx ne peut pas générer de vrai GS1 DataMatrix (pas de FNC1).")
@@ -718,91 +622,44 @@ def generate_barcode(data, barcode_format=BarcodeFormat.DATAMATRIX, image_format
         ValueError: Si le format de code-barres n'est pas pris en charge
         ImportError: Si une bibliothèque requise n'est pas disponible
     """
-    # 🚨 DIAGNOSTIC CRITIQUE : Logs ultra-détaillés pour debug API Docker
-    print(f"\n🔍 [DIAGNOSTIC] === DÉBUT generate_barcode() ===")
-    print(f"[DIAGNOSTIC] Format demandé: {barcode_format}")
-    print(f"[DIAGNOSTIC] Données brutes: {repr(data[:50])}...")
-    print(f"[DIAGNOSTIC] use_treepoem paramètre: {use_treepoem}")
-
-    # Variables d'environnement critiques
-    print(f"[DIAGNOSTIC] VARIABLES ENVIRONNEMENT:")
-    print(f"[DIAGNOSTIC] - BWIPJS_AVAILABLE: {BWIPJS_AVAILABLE}")
-    print(f"[DIAGNOSTIC] - TREEPOEM_AVAILABLE: {TREEPOEM_AVAILABLE}")
-    print(f"[DIAGNOSTIC] - ZINT_AVAILABLE: {ZINT_AVAILABLE}")
-    print(f"[DIAGNOSTIC] - DMTXWRITE_AVAILABLE: {DMTXWRITE_AVAILABLE}")
-
-    # Vérification chemins critiques
-    print(f"[DIAGNOSTIC] CHEMINS FICHIERS:")
-    print(f"[DIAGNOSTIC] - /app/generate_gs1_bwip.js existe: {os.path.exists('/app/generate_gs1_bwip.js')}")
-    print(f"[DIAGNOSTIC] - /app/node_modules/bwip-js existe: {os.path.exists('/app/node_modules/bwip-js')}")
-    print(f"[DIAGNOSTIC] - node disponible: {shutil.which('node')}")
-
     # Préparer les données selon le format GS1
     formatted_data = prepare_gs1_content(data, barcode_format)
 
-    # Debug: afficher la chaîne formatée pour GS1 DataMatrix
-    if barcode_format == BarcodeFormat.GS1_DATAMATRIX:
-        print(f"[DIAGNOSTIC] Input data: {repr(data)}")
-        print(f"[DIAGNOSTIC] Formatted for GS1 DataMatrix: {repr(formatted_data)}")
-
     # Utiliser treepoem si disponible et demandé
-    print(f"[DIAGNOSTIC] Test condition treepoem: use_treepoem={use_treepoem}, TREEPOEM_AVAILABLE={TREEPOEM_AVAILABLE}")
     if use_treepoem and TREEPOEM_AVAILABLE:
-        print(f"[DIAGNOSTIC] 🔄 TENTATIVE: generate_barcode_with_treepoem")
         try:
             img = generate_barcode_with_treepoem(formatted_data, barcode_format)
-            print(f"[DIAGNOSTIC] ✅ SUCCÈS: treepoem utilisé, SORTIE")
         except Exception as e:
             # Fallback aux méthodes spécifiques en cas d'erreur
-            print(f"[DIAGNOSTIC] ❌ ÉCHEC treepoem: {e}, passage aux générateurs spécifiques")
+            print(f"Treepoem error: {e}, using specific generators")
             use_treepoem = False
-    else:
-        print(f"[DIAGNOSTIC] ⏭️ SKIP treepoem (use_treepoem={use_treepoem}, TREEPOEM_AVAILABLE={TREEPOEM_AVAILABLE})")
     
-    # Utiliser les générateurs spécifiques avec architecture hybride CORRIGÉE
-    print(f"[DIAGNOSTIC] Test condition architecture hybride: not use_treepoem={not use_treepoem} or not TREEPOEM_AVAILABLE={not TREEPOEM_AVAILABLE}")
+    # Utiliser les générateurs spécifiques avec architecture hybride
     if not use_treepoem or not TREEPOEM_AVAILABLE:
-        print(f"[DIAGNOSTIC] 🔄 ENTRÉE dans générateurs spécifiques")
-
         if barcode_format == BarcodeFormat.GS1_DATAMATRIX:
-            print(f"[DIAGNOSTIC] 🎯 GS1_DATAMATRIX détecté - LANCEMENT architecture hybride")
-            print(f"[DIAGNOSTIC] 📊 Status générateurs disponibles avant appel:")
-            print(f"[DIAGNOSTIC] - BWIPJS_AVAILABLE: {BWIPJS_AVAILABLE}")
-            print(f"[DIAGNOSTIC] - TREEPOEM_AVAILABLE: {TREEPOEM_AVAILABLE}")
-            print(f"[DIAGNOSTIC] - ZINT_AVAILABLE: {ZINT_AVAILABLE}")
-
+            # Utiliser l'architecture hybride avec bwip-js en priorité
             try:
-                print(f"[DIAGNOSTIC] 🚀 APPEL generate_gs1_datamatrix_hybrid()")
                 img = generate_gs1_datamatrix_hybrid(formatted_data)
-                print(f"[DIAGNOSTIC] ✅ SUCCESS: Architecture hybride GS1 DataMatrix - img.size={img.size}")
             except Exception as e:
-                print(f"[DIAGNOSTIC] 💥 ERREUR CRITIQUE architecture hybride: {type(e).__name__}: {e}")
-                import traceback
-                print(f"[DIAGNOSTIC] 📋 STACK TRACE complet:")
-                traceback.print_exc()
                 raise HTTPException(status_code=500, detail=f"Impossible de générer GS1 DataMatrix conforme: {e}")
 
         elif barcode_format == BarcodeFormat.DATAMATRIX:
-            print(f"[DIAGNOSTIC] 🔄 DATAMATRIX standard (non-GS1)")
             img = generate_datamatrix(formatted_data)
         elif barcode_format in [BarcodeFormat.QRCODE, BarcodeFormat.GS1_QRCODE]:
-            print(f"[DIAGNOSTIC] 🔄 QR Code")
             img = generate_qrcode(formatted_data)
         elif barcode_format in [BarcodeFormat.CODE128, BarcodeFormat.GS1_128]:
-            print(f"[DIAGNOSTIC] 🔄 Code 128")
             img = generate_code128(formatted_data)
         else:
-            print(f"[DIAGNOSTIC] ❌ Format non supporté: {barcode_format}")
             raise ValueError(f"Format de code-barres non pris en charge: {barcode_format}")
-
-    else:
-        print(f"[DIAGNOSTIC] ⏭️ SKIP générateurs spécifiques - treepoem sera utilisé")
-
-    print(f"[DIAGNOSTIC] 📐 Redimensionnement de l'image vers {width}x{height}")
-    print(f"[DIAGNOSTIC] === FIN generate_barcode() ===\n")
     
-    # Redimensionner l'image
-    img = img.resize((width, height), Image.LANCZOS)
+    # Optimisation redimensionnement pour GS1 DataMatrix
+    if barcode_format == BarcodeFormat.GS1_DATAMATRIX:
+        # Garder la taille native pour préserver la qualité et la compatibilité
+        # GS1 DataMatrix est optimisé par bwip-js avec la taille correcte
+        pass  # Pas de redimensionnement pour GS1 DataMatrix
+    else:
+        # Redimensionner les autres formats comme avant
+        img = img.resize((width, height), Image.LANCZOS)
     
     # Encoder l'image au format demandé
     output = io.BytesIO()
