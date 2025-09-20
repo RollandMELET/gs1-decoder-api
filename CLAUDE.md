@@ -6,7 +6,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ### Development Setup
 ```bash
-# Initial setup (installs dependencies, creates venv)
+# 🚀 Setup complet (TDD + dépendances + hooks)
+make setup
+
+# Ou étape par étape
+make install              # Dépendances Python + Node.js
+make setup-hooks          # Pre-commit hooks
+
+# Legacy setup
 ./setup_dev.sh
 
 # Activate virtual environment
@@ -16,28 +23,49 @@ venv\Scripts\activate     # Windows
 
 # Install dependencies manually if needed
 pip install -r requirements.txt
+pip install -r requirements-test.txt
+npm install
 ```
 
 ### Running the Application
 ```bash
-# Development server (with hot reload)
+# 🔧 Mode développement avec reload
+make dev
+
+# Legacy mode
 uvicorn app.main:app --reload
 
 # Production mode
 uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-### Testing
+### Testing (TDD Suite)
 ```bash
-# Run API tests against local server
-python test_api.py
+# 🔴 CRITICAL TESTS (obligatoires avant commit)
+make test-critical
 
-# Test specific components
+# ⚡ Tests rapides développement
+make test-fast
+
+# 🧪 Suite complète de tests
+make test-all
+
+# 📊 Tests avec couverture
+make test-coverage
+
+# Tests par catégorie
+make test-integration     # Architecture hybride
+make test-performance     # Optimisation tailles
+make test-regression      # Non-régression
+
+# 🏥 Monitoring production
+make monitor
+
+# Legacy tests (anciens)
+python test_api.py
 python test_barcode_detection.py <image_path>
 python test_gs1_parser.py
 python test_generate.py
-
-# Test against production API
 ./test-gs1.sh
 
 # Production API URL
@@ -122,7 +150,27 @@ docker-compose up -d
 
 ### Testing Strategy
 
+**TDD Suite Complète (Nouvelle Architecture)**
+- **Tests Critiques** (`tests/unit/test_gs1_datamatrix_core.py`) - 🔴 OBLIGATOIRES avant commit
+- **Tests Intégration** (`tests/integration/`) - Architecture hybride Python ↔ Node.js
+- **Tests Conformité** (`tests/conformity/`) - Standards GS1 et validation ZXing
+- **Tests Performance** (`tests/performance/`) - Optimisation tailles (96.8% réduction)
+- **Tests Régression** (`tests/integration/test_regression.py`) - Non-régression autres formats
+
+**Points Critiques Protégés:**
+- ✅ `use_treepoem=False` forcé pour GS1 DataMatrix (architecture hybride)
+- ✅ Priorité bwip-js dans chaîne fallbacks
+- ✅ Identifier AIM ]d2 (GS1 DataMatrix) vs ]d1 (DataMatrix standard)
+- ✅ Optimisation tailles natives (500-700 bytes vs 16k-23k avant)
+
+**Legacy Tests**
 - Unit tests for individual components (`test_*.py`)
 - Integration tests against running API (`test_api.py`)
 - Production smoke tests (`test-gs1.sh`)
 - Manual testing with sample images in root directory
+
+**Workflow Développeur:**
+1. `make test-critical` avant chaque commit
+2. `make test-all` avant pull request
+3. `make monitor` surveillance production
+4. Point restauration: `v1.3.0-gs1-stable` en cas de régression

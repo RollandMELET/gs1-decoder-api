@@ -164,12 +164,100 @@ Le fichier `barcode.png` sera sauvegardé dans votre répertoire courant.
 
 ---
 
+## 🧪 Développement et Tests
+
+Ce projet utilise une **suite TDD complète** pour sécuriser la fonctionnalité critique de génération GS1 DataMatrix.
+
+### 🚀 Setup Développement
+```bash
+# Installation complète (dépendances + hooks TDD)
+make setup
+
+# Vérifier que tout fonctionne
+make test-critical
+```
+
+### 🔴 Tests Critiques (Obligatoires)
+```bash
+# Tests critiques avant chaque commit
+make test-critical
+
+# Tests rapides pour développement
+make test-fast
+
+# Suite complète
+make test-all
+```
+
+### 🏥 Monitoring Production
+```bash
+# Surveillance API production
+make monitor
+
+# Surveillance avec alertes
+make monitor-alert
+```
+
+### 🛠️ Commandes Utiles
+```bash
+make help           # Liste toutes les commandes
+make dev            # Mode développement avec reload
+make lint           # Vérification code
+make clean          # Nettoyage
+make info           # Informations système
+```
+
+### 🔄 Point de Restauration
+En cas de problème critique :
+```bash
+make restore-stable    # Retour version stable v1.3.0-gs1-stable
+```
+
+### 🎯 Workflow TDD Recommandé
+```bash
+# 1. Avant modification
+make test-critical
+
+# 2. Développement
+make dev                # Terminal 1: serveur dev
+make dev-test           # Terminal 2: tests continus
+
+# 3. Avant commit
+make validate          # Tests + lint automatique
+git commit -m "..."    # Pre-commit hooks activés
+
+# 4. Avant merge PR
+make test-all          # Validation complète
+```
+
+---
+
 ## 📦 Construire et lancer manuellement en Docker
 
 ```bash
 docker build -t gs1-decoder-api .
 docker run -d -p 8000:8000 gs1-decoder-api
 ```
+
+---
+
+## 📚 Documentation Technique
+
+- **TDD et Tests :** `docs/testing/README.md`
+- **Architecture GS1 :** `docs/features/gs1-datamatrix-generation.md`
+- **Point de Restauration :** `RESTORE_POINT.md`
+- **Configuration Claude Code :** `CLAUDE.md`
+
+---
+
+## 🔒 Sécurité et Qualité
+
+- ✅ **Suite TDD complète** avec 4 tests critiques obligatoires
+- ✅ **CI/CD GitHub Actions** avec validation multi-version
+- ✅ **Pre-commit hooks** avec tests automatiques
+- ✅ **Monitoring production** temps réel
+- ✅ **Optimisation 96.8%** tailles fichiers GS1 DataMatrix (500-700 bytes vs 16k-23k)
+- ✅ **Conformité GS1** complète avec identifier ]d2
 
 ---
 
