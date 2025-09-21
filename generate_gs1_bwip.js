@@ -26,17 +26,17 @@ console.log(`[DEBUG] bwip-js: Génération GS1 DataMatrix SIMPLIFIÉE`);
 console.log(`[DEBUG] Données brutes: ${data}`);
 console.log(`[DEBUG] Sortie: ${outputPath}`);
 
-// CONFIGURATION SIMPLE identique au projet de référence qui fonctionne
+// CONFIGURATION OPTIMISÉE - Quiet zone minimale GS1 standard
 const options = {
     bcid: 'gs1datamatrix',      // Type GS1 DataMatrix
     text: data,                 // Données brutes (avec parenthèses) - AUCUNE transformation
     scale: 3,                   // Même valeur que le projet de référence
     height: 10,                 // Valeurs standard du projet de référence
     width: 10,
-    paddingleft: 10,
-    paddingright: 10,
-    paddingtop: 10,
-    paddingbottom: 10,
+    paddingleft: 2,             // OPTIMISÉ: Quiet zone minimale (était 10)
+    paddingright: 2,            // OPTIMISÉ: Quiet zone minimale (était 10)
+    paddingtop: 2,              // OPTIMISÉ: Quiet zone minimale (était 10)
+    paddingbottom: 2,           // OPTIMISÉ: Quiet zone minimale (était 10)
     includetext: true,          // Comme dans le projet de référence
     textxalign: 'center',
     textcolor: '000000',
