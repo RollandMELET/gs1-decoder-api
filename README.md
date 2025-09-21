@@ -163,6 +163,58 @@ curl -X POST "https://gs1-decoder-api.rorworld.eu/generate/" \
   }' \
   --output barcode.png
 ```
+
+#### 🎯 **Contrôle Avancé Quiet Zone (GS1 DataMatrix)**
+
+**Nouveau :** Contrôle précis des quiet zones selon standards GS1.
+
+```bash
+# Standard GS1 conforme (1.0 module)
+curl -X POST "https://gs1-decoder-api.rorworld.eu/generate/" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": "(01)03453120000011(17)271031(10)BATCH123",
+    "format": "gs1-datamatrix",
+    "quiet_zone_modules": 1.0,
+    "no_quiet_zone": false,
+    "client_mode": "optimized"
+  }' \
+  --output gs1_standard.png
+
+# Sans quiet zone (client gère design)
+curl -X POST "https://gs1-decoder-api.rorworld.eu/generate/" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": "(01)03453120000011(17)271031(10)BATCH123",
+    "format": "gs1-datamatrix",
+    "quiet_zone_modules": 0.0,
+    "no_quiet_zone": true,
+    "client_mode": "optimized"
+  }' \
+  --output gs1_minimal.png
+
+# Quiet zone élargie (meilleure lisibilité)
+curl -X POST "https://gs1-decoder-api.rorworld.eu/generate/" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "data": "(01)03453120000011(17)271031(10)BATCH123",
+    "format": "gs1-datamatrix",
+    "quiet_zone_modules": 2.0,
+    "client_mode": "optimized"
+  }' \
+  --output gs1_extended.png
+```
+
+**Paramètres Quiet Zone :**
+- `quiet_zone_modules`: 0.0 à 10.0 (défaut: 1.0 = standard GS1)
+- `no_quiet_zone`: true/false (défaut: false)
+- `client_mode`: "optimized" (taille native) | "compatible" (redimensionné)
+
+**Résultats attendus :**
+- Sans quiet zone: ~491 bytes, 80×80 pixels
+- Standard (1.0 module): ~526 bytes, 98×98 pixels
+- Élargie (2.0 modules): ~536 bytes, 116×116 pixels
+
 **Résultat attendu :**
 Le fichier `barcode.png` sera sauvegardé dans votre répertoire courant.
 

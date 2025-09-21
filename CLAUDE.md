@@ -60,9 +60,10 @@ make test-integration     # Architecture hybride
 make test-performance     # Optimisation tailles
 make test-regression      # Non-régression
 
-# 🎯 NOUVEAUX: Tests formats étendus
+# 🎯 NOUVEAUX: Tests formats étendus + Quiet Zone
 make test-formats         # Tests tous formats (QR, Code128, DataMatrix, GS1)
 make test-endpoints       # Tests endpoints (/generate/, /decode/, /parse/, /health)
+make test-quiet-zone      # Tests paramètres quiet zone GS1 DataMatrix
 
 # 🏥 Monitoring production
 make monitor              # GS1 DataMatrix + formats critiques
@@ -174,6 +175,8 @@ docker-compose up -d
 - ✅ Priorité bwip-js dans chaîne fallbacks
 - ✅ Identifier AIM ]d2 (GS1 DataMatrix) vs ]d1 (DataMatrix standard)
 - ✅ Optimisation tailles natives (500-700 bytes vs 16k-23k avant)
+- ✅ **NOUVEAU:** Contrôle quiet zone paramétrable (0.0-10.0 modules, standards GS1)
+- ✅ **NOUVEAU:** Mode client optimized preserve tailles natives vs compatible (redimensionné)
 
 **Legacy Tests**
 - Unit tests for individual components (`test_*.py`)

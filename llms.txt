@@ -4,7 +4,7 @@
 FastAPI service generating/decoding 6 barcode formats with critical GS1 DataMatrix optimization (96.8% size reduction) + comprehensive TDD suite.
 
 **API URL:** https://gs1-decoder-api.rorworld.eu/
-**Critical Success:** GS1 DataMatrix 510-765 bytes (vs 16k-23k original)
+**Critical Success:** GS1 DataMatrix 491-536 bytes (vs 16k-23k original) + paramètres quiet zone
 
 ## Quick Start
 ```bash
@@ -137,12 +137,31 @@ treepoem, zint-bindings, setuptools>=60.0.0
 bwip-js (GS1 DataMatrix FNC1 solution)
 ```
 
+## Quiet Zone Control (NEW)
+
+### API Parameters
+```json
+{
+  "format": "gs1-datamatrix",
+  "quiet_zone_modules": 1.0,    // 0.0-10.0, default 1.0 (standard GS1)
+  "no_quiet_zone": false,       // true = client manages padding
+  "client_mode": "optimized"    // optimized/compatible
+}
+```
+
+### Results by Configuration
+- **no_quiet_zone: true** → 491 bytes, 80×80px (minimal)
+- **quiet_zone_modules: 1.0** → 526 bytes, 98×98px (standard)
+- **quiet_zone_modules: 2.0** → 536 bytes, 116×116px (enhanced)
+
 ## Error Patterns
 
 ### GS1 DataMatrix Failures
 - **Bad checksum**: Invalid GTIN → Use valid GTIN (01)03760423190005
 - **Size regression**: >800 bytes → Check use_treepoem=False forced
 - **]d1 instead ]d2**: FNC1 missing → Verify bwip-js priority
+- **37KB instead 500 bytes**: Wrong format → Use "gs1-datamatrix" not "datamatrix"
+- **Quiet zone ignored**: Parameters not propagated → Check client_mode="optimized"
 
 ### Standard Format Failures
 - **500 Internal Error**: Data contamination → Check prepare_gs1_content() isolation
