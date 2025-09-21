@@ -357,12 +357,16 @@ def generate_gs1_datamatrix_bwipjs(data, **kwargs):
 
     with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
         try:
+            # Déterminer quiet zone selon paramètres
+            quiet_zone = 0.0 if kwargs.get('no_quiet_zone', False) else kwargs.get('quiet_zone_modules', 1.0)
+
             # Commande Node.js pour générer le GS1 DataMatrix
             cmd = [
                 'node',
                 '/app/generate_gs1_bwip.js',
                 data,
-                tmp.name
+                tmp.name,
+                str(quiet_zone)  # Passer quiet zone en modules
             ]
 
             # Exécution subprocess optimisée
@@ -618,7 +622,8 @@ def generate_barcode_with_treepoem(data, barcode_format):
 
 def generate_barcode(data, barcode_format=BarcodeFormat.DATAMATRIX, image_format=ImageFormat.PNG,
                     width=300, height=300, use_treepoem=True, client_mode="optimized",
-                    quality_mode="balanced", padding_pixels=0, **kwargs):
+                    quality_mode="balanced", quiet_zone_modules=1.0, no_quiet_zone=False,
+                    padding_pixels=0, **kwargs):
     """
     Génère un code-barres du format spécifié.
 

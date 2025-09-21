@@ -551,6 +551,8 @@ async def generate_barcode_image(request: GenerateRequest):
             use_treepoem=use_treepoem_param,  # PARAMÈTRE CRITIQUE
             client_mode=request.client_mode,
             quality_mode=request.quality_mode,
+            quiet_zone_modules=request.quiet_zone_modules,
+            no_quiet_zone=request.no_quiet_zone,
             padding_pixels=request.padding_pixels
         )
         

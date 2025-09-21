@@ -14,29 +14,39 @@ const fs = require('fs');
 
 // Vérifier les arguments
 if (process.argv.length < 4) {
-    console.error('ERROR: Usage: node generate_gs1_bwip.js "données_gs1" "fichier_sortie.png"');
-    console.error('ERROR: Exemple: node generate_gs1_bwip.js "(01)12345678901234" "output.png"');
+    console.error('ERROR: Usage: node generate_gs1_bwip.js "données_gs1" "fichier_sortie.png" [quiet_zone_modules]');
+    console.error('ERROR: Exemple: node generate_gs1_bwip.js "(01)12345678901234" "output.png" 1.0');
+    console.error('ERROR: quiet_zone_modules: 1.0=standard GS1, 0.0=aucune, 2.0=double');
     process.exit(1);
 }
 
 const data = process.argv[2];
 const outputPath = process.argv[3];
+const quietZoneModules = process.argv[4] !== undefined ? parseFloat(process.argv[4]) : 1.0;  // Défaut 1.0 module (standard GS1)
 
 console.log(`[DEBUG] bwip-js: Génération GS1 DataMatrix SIMPLIFIÉE`);
 console.log(`[DEBUG] Données brutes: ${data}`);
 console.log(`[DEBUG] Sortie: ${outputPath}`);
 
-// CONFIGURATION OPTIMISÉE - Quiet zone minimale GS1 standard
+// CONFIGURATION CONFORME STANDARD GS1 - Quiet zone proportionnelle
+console.log(`[DEBUG] Quiet zone: ${quietZoneModules} modules (standard GS1 = 1.0)`);
+
+// Calculer quiet zone proportionnelle au module
+// En bwip-js, scale=3 signifie 1 module = 3 pixels
+const moduleSize = 3;  // scale factor
+const quietZonePixels = Math.round(quietZoneModules * moduleSize);
+console.log(`[DEBUG] Calcul: ${quietZoneModules} modules × ${moduleSize} pixels = ${quietZonePixels} pixels`);
+
 const options = {
     bcid: 'gs1datamatrix',      // Type GS1 DataMatrix
     text: data,                 // Données brutes (avec parenthèses) - AUCUNE transformation
     scale: 3,                   // Même valeur que le projet de référence
     height: 10,                 // Valeurs standard du projet de référence
     width: 10,
-    paddingleft: 2,             // OPTIMISÉ: Quiet zone minimale (était 10)
-    paddingright: 2,            // OPTIMISÉ: Quiet zone minimale (était 10)
-    paddingtop: 2,              // OPTIMISÉ: Quiet zone minimale (était 10)
-    paddingbottom: 2,           // OPTIMISÉ: Quiet zone minimale (était 10)
+    paddingleft: quietZonePixels,   // CONFORME: Quiet zone proportionnelle (modules × scale)
+    paddingright: quietZonePixels,  // CONFORME: Quiet zone proportionnelle (modules × scale)
+    paddingtop: quietZonePixels,    // CONFORME: Quiet zone proportionnelle (modules × scale)
+    paddingbottom: quietZonePixels, // CONFORME: Quiet zone proportionnelle (modules × scale)
     includetext: true,          // Comme dans le projet de référence
     textxalign: 'center',
     textcolor: '000000',

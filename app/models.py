@@ -76,7 +76,11 @@ class GenerateRequest(BaseModel):
     dpi: Optional[int] = Field(default=96, ge=72, le=600, description="Densité DPI pour impression (72=screen, 300=print)")
     scale_factor: Optional[float] = Field(default=1.0, ge=0.5, le=5.0, description="Multiplicateur taille (2.0 = double)")
     quality_mode: Optional[str] = Field(default="balanced", description="Qualité: 'compact', 'balanced', 'high'")
-    padding_pixels: Optional[int] = Field(default=0, ge=0, le=100, description="Padding autour du code en pixels")
+
+    # Contrôle quiet zone conforme standard GS1
+    quiet_zone_modules: Optional[float] = Field(default=1.0, ge=0.0, le=10.0, description="Quiet zone en modules (1.0=standard GS1, 0.0=aucune)")
+    no_quiet_zone: Optional[bool] = Field(default=False, description="Désactiver quiet zone (client gère design)")
+    padding_pixels: Optional[int] = Field(default=0, ge=0, le=100, description="Padding additionnel en pixels (après quiet zone)")
 
 
 # <--- AJOUT: Nouveaux modèles pour l'endpoint /parse/ --- >
