@@ -1,0 +1,200 @@
+# GS1 Decoder API - LLM Knowledge Base
+
+## Project Overview
+FastAPI service generating/decoding 6 barcode formats with critical GS1 DataMatrix optimization (96.8% size reduction) + comprehensive TDD suite.
+
+**API URL:** https://gs1-decoder-api.rorworld.eu/
+**Critical Success:** GS1 DataMatrix 510-765 bytes (vs 16k-23k original)
+
+## Quick Start
+```bash
+# Setup
+make setup && make test-critical
+
+# Development
+make dev                    # Start server
+make test-fast             # Quick validation
+make monitor              # Production check
+
+# Emergency
+make restore-stable       # Rollback to stable
+```
+
+## Core Architecture
+
+### Critical Components
+**GS1 DataMatrix (PRIORITY 1)**
+- Path: `app/barcode_generator.py:generate_gs1_datamatrix_hybrid()`
+- Method: bwip-js hybrid → treepoem → zint → dmtxwrite fallbacks
+- Trigger: `use_treepoem=False` forced in `app/main.py:240`
+- Output: 500-800 bytes PNG, ]d2 identifier, FNC1 position 1
+
+**Routing Logic**
+- Path: `app/main.py:generate_barcode_image()`
+- Logic: Format detection → use_treepoem conditional → generator selection
+- Critical: GS1 DataMatrix bypasses standard routing
+
+**Data Preparation**
+- Path: `app/barcode_generator.py:prepare_gs1_content()`
+- Logic: Standard formats unchanged, GS1 formats processed
+- Fix: Non-GS1 data preserved as-is (prevents contamination)
+
+## Supported Formats
+
+| Format | Type | Size | Performance | Generator |
+|--------|------|------|-------------|-----------|
+| gs1_datamatrix | GS1 | 500-800b | <2s | bwip-js hybrid |
+| gs1_qr_code | GS1 | 1-20KB | <5s | qrcode+GS1 |
+| gs1_128 | GS1 | 500-10KB | <3s | python-barcode+GS1 |
+| qr_code | STD | 1-50KB | <5s | qrcode/treepoem |
+| datamatrix | STD | 2-30KB | <5s | pylibdmtx/treepoem |
+| code_128 | STD | 500-20KB | <3s | python-barcode/treepoem |
+
+## API Endpoints
+
+### POST /generate/
+```json
+{"data": "(01)03760423190005", "barcode_format": "gs1_datamatrix"}
+→ PNG binary (510 bytes, 169ms)
+```
+
+### POST /decode/
+```
+file=image.png → {"found": true, "data": "(01)...", "aim_identifier": "]d2"}
+```
+
+### POST /parse/
+```json
+{"raw_data": "(01)03760423190005(17)250910", "verbose": true}
+→ [{"ai": "01", "name": "GTIN", "value": "03760423190005"}]
+```
+
+### GET /health
+```json
+→ {"status": "OK", "capabilities": {"generators": {"bwipjs": true}}}
+```
+
+## Testing Framework
+
+### Critical Tests (BLOCKING)
+```bash
+make test-critical  # 4 tests must pass before commit
+```
+1. `test_use_treepoem_false_for_gs1_datamatrix` - Force hybrid architecture
+2. `test_bwipjs_priority_in_hybrid_architecture` - Priority chain
+3. `test_gs1_aim_identifier_validation` - ]d2 identifier
+4. `test_file_size_optimization_simple` - 96.8% reduction
+
+### Extended Tests
+```bash
+make test-formats    # QR/Code128/DataMatrix/GS1 validation
+make test-endpoints  # /generate/decode/parse/health endpoints
+make test-all       # Full suite
+```
+
+### Test Structure
+```
+tests/
+├── unit/           # Critical GS1 DataMatrix components
+├── integration/    # Python↔Node.js hybrid architecture
+├── conformity/     # GS1 standards ISO/IEC 16022
+├── performance/    # 96.8% optimization validation
+├── formats/        # 6 formats individual validation
+└── endpoints/      # 4 API endpoints comprehensive
+```
+
+## Monitoring
+
+### Production Surveillance
+```bash
+make monitor                      # Critical GS1 DataMatrix
+make monitor-all                 # 6 formats + JSON metrics
+make monitor-endpoints           # 4 endpoints detailed
+make monitor-performance         # Benchmarks with thresholds
+make monitor-performance-concurrent  # Load testing
+```
+
+### Critical Metrics
+- **GS1 DataMatrix**: 500-800 bytes, <2s, ]d2 identifier (**BLOCKING if fails**)
+- **Standard formats**: <5s response, proper format differentiation
+- **Endpoints**: /health <1s, /generate <5s, /decode <10s, /parse <1s
+
+## Dependencies
+
+### Docker (Production)
+```dockerfile
+python:3.10-slim + nodejs:18 + ghostscript + libdmtx-dev + java21
+```
+
+### Python Critical
+```
+fastapi, uvicorn, JPype1, pylibdmtx, qrcode, python-barcode,
+treepoem, zint-bindings, setuptools>=60.0.0
+```
+
+### Node.js Critical
+```
+bwip-js (GS1 DataMatrix FNC1 solution)
+```
+
+## Error Patterns
+
+### GS1 DataMatrix Failures
+- **Bad checksum**: Invalid GTIN → Use valid GTIN (01)03760423190005
+- **Size regression**: >800 bytes → Check use_treepoem=False forced
+- **]d1 instead ]d2**: FNC1 missing → Verify bwip-js priority
+
+### Standard Format Failures
+- **500 Internal Error**: Data contamination → Check prepare_gs1_content() isolation
+- **Missing dependencies**: Import errors → Verify setuptools + system libs
+
+## Recovery Procedures
+
+### Critical Failure (GS1 DataMatrix)
+```bash
+make restore-stable              # → v1.4.0-tdd-complete
+# OR
+git checkout v1.9.0-tdd-complete-service
+```
+
+### Standard Format Issues
+```bash
+# Diagnostic
+make debug-python && make debug-nodejs
+
+# Validation
+make test-formats
+
+# Fix verification
+make test-critical  # Must still pass
+```
+
+## File Locations
+
+### Core Logic
+- `app/main.py:240` - use_treepoem routing logic
+- `app/barcode_generator.py:520-580` - GS1 DataMatrix hybrid
+- `generate_gs1_bwip.js` - Node.js FNC1 solution
+
+### Critical Tests
+- `tests/unit/test_gs1_datamatrix_core.py` - Blocking tests
+- `.github/workflows/gs1-tests.yml` - CI/CD 7 jobs
+- `scripts/monitor-*.sh` - Production surveillance
+
+### Documentation
+- `docs/features/gs1-datamatrix-generation.md` - Technical deep-dive
+- `docs/troubleshooting/README.md` - Format-specific debugging
+- `FINAL_VALIDATION_REPORT.md` - Project completion status
+
+## Context-Optimized Commands Reference
+
+| Task | Command | Time | Critical |
+|------|---------|------|----------|
+| Setup | `make setup` | <2m | No |
+| Validate | `make test-critical` | <30s | **YES** |
+| Monitor | `make monitor` | <10s | **YES** |
+| Debug | `make info` | <5s | No |
+| Restore | `make restore-stable` | <30s | **YES** |
+
+---
+*Auto-generated LLM-optimized documentation - Format: llms.txt standard 2025*
