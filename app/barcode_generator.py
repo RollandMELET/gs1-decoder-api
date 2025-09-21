@@ -335,7 +335,7 @@ def generate_code128(data):
 # FONCTIONS SPÉCIALISÉES GS1 DATAMATRIX
 # ========================================
 
-def generate_gs1_datamatrix_bwipjs(data, **kwargs):
+def generate_gs1_datamatrix_bwipjs(data, quiet_zone_modules=1.0, no_quiet_zone=False, **kwargs):
     """
     Génère un GS1 DataMatrix via bwip-js Node.js (SOLUTION CORRIGÉE).
 
@@ -358,7 +358,8 @@ def generate_gs1_datamatrix_bwipjs(data, **kwargs):
     with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as tmp:
         try:
             # Déterminer quiet zone selon paramètres
-            quiet_zone = 0.0 if kwargs.get('no_quiet_zone', False) else kwargs.get('quiet_zone_modules', 1.0)
+            quiet_zone = 0.0 if no_quiet_zone else quiet_zone_modules
+            print(f"[DEBUG] Quiet zone propagée: {quiet_zone} modules (no_quiet_zone={no_quiet_zone})")
 
             # Commande Node.js pour générer le GS1 DataMatrix
             cmd = [
@@ -519,7 +520,7 @@ def generate_gs1_datamatrix_dmtxwrite(data, **kwargs):
             subprocess.run(cmd_fallback, check=True, capture_output=True)
             return Image.open(tmp.name)
 
-def generate_gs1_datamatrix_hybrid(data, **kwargs):
+def generate_gs1_datamatrix_hybrid(data, quiet_zone_modules=1.0, no_quiet_zone=False, **kwargs):
     """
     Générateur hybride GS1 DataMatrix avec fallbacks automatiques.
     ORDRE DE PRIORITÉ basé sur note technique :
@@ -529,6 +530,8 @@ def generate_gs1_datamatrix_hybrid(data, **kwargs):
 
     Args:
         data (str): Données GS1 formatées
+        quiet_zone_modules (float): Quiet zone en modules (1.0=standard GS1, 0.0=aucune)
+        no_quiet_zone (bool): Désactiver quiet zone complètement
         **kwargs: Arguments supplémentaires
 
     Returns:
@@ -542,7 +545,12 @@ def generate_gs1_datamatrix_hybrid(data, **kwargs):
     # PRIORITÉ 1: bwip-js (solution validée)
     if BWIPJS_AVAILABLE:
         try:
-            return generate_gs1_datamatrix_bwipjs(data, **kwargs)
+            return generate_gs1_datamatrix_bwipjs(
+                data,
+                quiet_zone_modules=quiet_zone_modules,
+                no_quiet_zone=no_quiet_zone,
+                **kwargs
+            )
         except Exception as e:
             errors.append(f"bwip-js: {e}")
             print(f"[DEBUG] bwip-js échoué: {e}")
