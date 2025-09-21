@@ -2,6 +2,8 @@
 
 Microservice pour décoder et générer des codes-barres GS1 (1D/2D), avec parsing complet et support verbose.
 
+> **🧠 Pour agents LLM :** Consultez [`/llms.txt`](/llms.txt) pour une référence complète optimisée (60% moins de tokens). Documentation alternative : [`README_LLM_OPTIMIZED.md`](/README_LLM_OPTIMIZED.md)
+
 ---
 
 ## ✨ Fonctionnalités
@@ -255,11 +257,19 @@ docker run -d -p 8000:8000 gs1-decoder-api
 
 ## 📚 Documentation Technique
 
+### 🧠 **Documentation LLM-Optimisée (NOUVEAU)**
+- **📄 Référence principale LLM :** [`/llms.txt`](/llms.txt) - Format standard 2025 (60% moins de tokens)
+- **📋 Guide Claude Code :** [`CLAUDE_LLM_OPTIMIZED.md`](/CLAUDE_LLM_OPTIMIZED.md) - Commands structurés
+- **📖 Guide utilisateur :** [`README_LLM_OPTIMIZED.md`](/README_LLM_OPTIMIZED.md) - Setup + usage condensés
+- **🔗 Knowledge Graph :** [`PROJECT_KNOWLEDGE_GRAPH.md`](/PROJECT_KNOWLEDGE_GRAPH.md) - Relations composants
+- **📊 Index navigation :** [`DOCUMENTATION_INDEX.md`](/DOCUMENTATION_INDEX.md) - Guide navigation LLM
+
+### 📚 **Documentation Technique Complète**
 - **TDD et Tests :** `docs/testing/README.md`
 - **Architecture GS1 :** `docs/features/gs1-datamatrix-generation.md`
-- **🎯 Service Complet :** `docs/features/service-complet-tdd.md` - NOUVEAU
-- **🔧 Formats Supportés :** `docs/formats/README.md` - NOUVEAU
-- **🛠️ Troubleshooting :** `docs/troubleshooting/README.md` - NOUVEAU
+- **🎯 Service Complet :** `docs/features/service-complet-tdd.md`
+- **🔧 Formats Supportés :** `docs/formats/README.md`
+- **🛠️ Troubleshooting :** `docs/troubleshooting/README.md`
 - **Point de Restauration :** `RESTORE_POINT.md`, `STABLE_POINT_TDD.md`
 - **Configuration Claude Code :** `CLAUDE.md`
 - **Rapport Final :** `FINAL_VALIDATION_REPORT.md`

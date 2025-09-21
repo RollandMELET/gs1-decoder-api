@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **🧠 LLM-Optimized Reference:** For efficient context usage, start with [`/llms.txt`](/llms.txt) (complete project context in 1,500 tokens) or [`CLAUDE_LLM_OPTIMIZED.md`](/CLAUDE_LLM_OPTIMIZED.md) (commands-focused guide).
+
 ## Commands
 
 ### Development Setup
