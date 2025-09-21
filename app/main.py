@@ -511,7 +511,13 @@ async def generate_barcode_image(request: GenerateRequest):
             use_treepoem_param = False  # Architecture hybride pour GS1 DataMatrix
 
             # Modes adaptatifs pour satisfaire critères clients variables
-            if request.client_mode == "compatible":
+            if request.client_mode == "optimized":
+                # Mode optimisé: utiliser dimensions natives de bwip-js (pas de redimensionnement)
+                # Marquer avec des valeurs spéciales pour indiquer "taille native"
+                adjusted_width = None  # Signal pour utiliser taille native
+                adjusted_height = None  # Signal pour utiliser taille native
+
+            elif request.client_mode == "compatible":
                 # Mode compatible: tailles plus généreuses pour clients exigeants
                 if request.target_file_size_kb:
                     # Calculer dimensions pour atteindre taille cible
@@ -533,14 +539,20 @@ async def generate_barcode_image(request: GenerateRequest):
                     adjusted_width = int(request.width * scale_needed)
                     adjusted_height = int(request.height * scale_needed)
 
-        # Application scale_factor global si spécifié
-        if request.scale_factor and request.scale_factor != 1.0:
+        # Application scale_factor global si spécifié (seulement si dimensions définies)
+        if request.scale_factor and request.scale_factor != 1.0 and adjusted_width is not None:
             adjusted_width = int(adjusted_width * request.scale_factor)
             adjusted_height = int(adjusted_height * request.scale_factor)
 
-        # Limites sécurité
-        adjusted_width = min(max(adjusted_width, 50), 2000)
-        adjusted_height = min(max(adjusted_height, 50), 2000)
+        # Limites sécurité (seulement si dimensions définies)
+        if adjusted_width is not None:
+            adjusted_width = min(max(adjusted_width, 50), 2000)
+            adjusted_height = min(max(adjusted_height, 50), 2000)
+        else:
+            # Mode optimized: utiliser dimensions par défaut minimales pour generate_barcode()
+            # Ces valeurs seront ignorées par la logique client_mode="optimized"
+            adjusted_width = 100  # Valeur placeholder qui sera ignorée
+            adjusted_height = 100  # Valeur placeholder qui sera ignorée
 
         barcode_image_bytes = generate_barcode(
             data=request.data,
