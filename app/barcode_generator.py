@@ -680,7 +680,11 @@ def generate_barcode(data, barcode_format=BarcodeFormat.DATAMATRIX, image_format
         if barcode_format == BarcodeFormat.GS1_DATAMATRIX:
             # Utiliser l'architecture hybride avec bwip-js en priorité
             try:
-                img = generate_gs1_datamatrix_hybrid(formatted_data)
+                img = generate_gs1_datamatrix_hybrid(
+                    formatted_data,
+                    quiet_zone_modules=quiet_zone_modules,
+                    no_quiet_zone=no_quiet_zone
+                )
             except Exception as e:
                 raise HTTPException(status_code=500, detail=f"Impossible de générer GS1 DataMatrix conforme: {e}")
 
@@ -929,7 +933,12 @@ def generate_gs1_datamatrix_hybrid_png_only(data, **kwargs):
     Pour embedding dans SVG wrapper
     """
     try:
-        result = generate_gs1_datamatrix_hybrid(data, **kwargs)
+        result = generate_gs1_datamatrix_hybrid(
+            data,
+            quiet_zone_modules=kwargs.get('quiet_zone_modules', 1.0),
+            no_quiet_zone=kwargs.get('no_quiet_zone', False),
+            **kwargs
+        )
         if isinstance(result, tuple):
             return result[0]  # PNG bytes seulement
         else:
