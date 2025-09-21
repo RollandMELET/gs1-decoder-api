@@ -617,7 +617,8 @@ def generate_barcode_with_treepoem(data, barcode_format):
     return img.convert("RGB")
 
 def generate_barcode(data, barcode_format=BarcodeFormat.DATAMATRIX, image_format=ImageFormat.PNG,
-                    width=300, height=300, use_treepoem=True):
+                    width=300, height=300, use_treepoem=True, client_mode="optimized",
+                    quality_mode="balanced", padding_pixels=0, **kwargs):
     """
     Génère un code-barres du format spécifié.
 
@@ -679,14 +680,29 @@ def generate_barcode(data, barcode_format=BarcodeFormat.DATAMATRIX, image_format
         else:
             raise ValueError(f"Format de code-barres non pris en charge: {barcode_format}")
     
-    # Optimisation redimensionnement pour GS1 DataMatrix
+    # Logique de redimensionnement adaptative
     if barcode_format == BarcodeFormat.GS1_DATAMATRIX:
-        # Garder la taille native pour préserver la qualité et la compatibilité
-        # GS1 DataMatrix est optimisé par bwip-js avec la taille correcte
-        pass  # Pas de redimensionnement pour GS1 DataMatrix
+        # GS1 DataMatrix: Logic selon client_mode
+        if client_mode == "optimized":
+            # Mode optimisé: préserver taille native (comportement actuel)
+            pass  # Pas de redimensionnement pour optimisation maximale
+        elif client_mode in ["compatible", "auto"]:
+            # Mode compatible: redimensionner pour satisfaire client
+            print(f"[DEBUG] GS1 DataMatrix mode {client_mode}: redimensionnement {width}x{height}")
+            img = img.resize((width, height), Image.LANCZOS)
+
+            # Ajouter padding si demandé
+            if padding_pixels > 0:
+                from PIL import ImageOps
+                img = ImageOps.expand(img, border=padding_pixels, fill='white')
     else:
-        # Redimensionner les autres formats comme avant
+        # Autres formats: redimensionnement standard
         img = img.resize((width, height), Image.LANCZOS)
+
+        # Ajouter padding si demandé
+        if padding_pixels > 0:
+            from PIL import ImageOps
+            img = ImageOps.expand(img, border=padding_pixels, fill='white')
     
     # Encoder l'image au format demandé
     output = io.BytesIO()

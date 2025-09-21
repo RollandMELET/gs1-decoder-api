@@ -70,6 +70,14 @@ class GenerateRequest(BaseModel):
     width: int = Field(default=300, ge=50, le=1000, description="Largeur de l'image en pixels")
     height: int = Field(default=300, ge=50, le=1000, description="Hauteur de l'image en pixels")
 
+    # NOUVEAUX paramètres contrôle précis (client GAS compatibility)
+    client_mode: Optional[str] = Field(default="optimized", description="Mode client: 'optimized' (défaut), 'compatible', 'auto'")
+    target_file_size_kb: Optional[int] = Field(default=None, ge=1, le=50, description="Taille fichier cible en KB (force dimensions appropriées)")
+    dpi: Optional[int] = Field(default=96, ge=72, le=600, description="Densité DPI pour impression (72=screen, 300=print)")
+    scale_factor: Optional[float] = Field(default=1.0, ge=0.5, le=5.0, description="Multiplicateur taille (2.0 = double)")
+    quality_mode: Optional[str] = Field(default="balanced", description="Qualité: 'compact', 'balanced', 'high'")
+    padding_pixels: Optional[int] = Field(default=0, ge=0, le=100, description="Padding autour du code en pixels")
+
 
 # <--- AJOUT: Nouveaux modèles pour l'endpoint /parse/ --- >
 class ParseRequest(BaseModel):

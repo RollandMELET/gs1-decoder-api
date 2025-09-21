@@ -502,18 +502,56 @@ async def generate_barcode_image(request: GenerateRequest):
         if internal_image_format is None:
             raise ValueError(f"Format d'image non supporté pour la génération: {request.image_format.value}")
 
-        # Optimisation: Utiliser architecture hybride pour GS1 DataMatrix
+        # Modes adaptatifs pour client GAS compatibility
         use_treepoem_param = True  # Défaut pour autres formats
+        adjusted_width = request.width
+        adjusted_height = request.height
+
         if internal_barcode_format == GenBarcodeFormat.GS1_DATAMATRIX:
             use_treepoem_param = False  # Architecture hybride pour GS1 DataMatrix
+
+            # Modes adaptatifs pour satisfaire critères clients variables
+            if request.client_mode == "compatible":
+                # Mode compatible: tailles plus généreuses pour clients exigeants
+                if request.target_file_size_kb:
+                    # Calculer dimensions pour atteindre taille cible
+                    target_bytes = request.target_file_size_kb * 1024
+                    # Estimation: ~1 byte par pixel pour PNG compressé
+                    target_pixels = int((target_bytes * 0.7) ** 0.5)  # Approximation
+                    adjusted_width = max(adjusted_width, target_pixels)
+                    adjusted_height = max(adjusted_height, target_pixels)
+                else:
+                    # Tailles par défaut plus généreuses mode compatible
+                    adjusted_width = int(request.width * (request.scale_factor or 1.5))
+                    adjusted_height = int(request.height * (request.scale_factor or 1.5))
+
+            elif request.client_mode == "auto":
+                # Auto-détection selon target_file_size_kb
+                if request.target_file_size_kb and request.target_file_size_kb > 3:
+                    # Client veut gros fichiers → mode compatible
+                    scale_needed = (request.target_file_size_kb / 1.0) ** 0.5  # Base 1KB
+                    adjusted_width = int(request.width * scale_needed)
+                    adjusted_height = int(request.height * scale_needed)
+
+        # Application scale_factor global si spécifié
+        if request.scale_factor and request.scale_factor != 1.0:
+            adjusted_width = int(adjusted_width * request.scale_factor)
+            adjusted_height = int(adjusted_height * request.scale_factor)
+
+        # Limites sécurité
+        adjusted_width = min(max(adjusted_width, 50), 2000)
+        adjusted_height = min(max(adjusted_height, 50), 2000)
 
         barcode_image_bytes = generate_barcode(
             data=request.data,
             barcode_format=internal_barcode_format,
             image_format=internal_image_format,
-            width=request.width,
-            height=request.height,
-            use_treepoem=use_treepoem_param  # PARAMÈTRE CRITIQUE
+            width=adjusted_width,
+            height=adjusted_height,
+            use_treepoem=use_treepoem_param,  # PARAMÈTRE CRITIQUE
+            client_mode=request.client_mode,
+            quality_mode=request.quality_mode,
+            padding_pixels=request.padding_pixels
         )
         
         mime_types = {
