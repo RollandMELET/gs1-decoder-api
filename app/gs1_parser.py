@@ -168,8 +168,18 @@ def parse_gs1(data, verbose=False):
         except:
             return [] if verbose else {}
     
-    # Normaliser les données
-    data = normalize_gs1_data(data)
+    # Normaliser les données.
+    # Cas du format lisible parenthésé (AI)valeur(AI)valeur... : le découper
+    # proprement en une forme concaténée séparée par le GS, que la boucle
+    # standard parse ensuite (les valeurs variables sont coupées au bon endroit).
+    # On bypasse normalize_gs1_data ici car son remplacement '.'->GS corromprait
+    # les valeurs du format lisible.
+    stripped = data.strip()
+    if stripped.startswith("(") and re.fullmatch(r"(?:\(\d{2,4}\)[^(]*)+", stripped):
+        segments = re.findall(r"\((\d{2,4})\)([^(]*)", stripped)
+        data = "\x1d".join(ai + value for ai, value in segments)
+    else:
+        data = normalize_gs1_data(data)
     
     parsed = []
     simple_parsed = {}
@@ -272,13 +282,22 @@ def parse_gs1(data, verbose=False):
         
         # Vérifier la validité pour certains types d'AI
         is_valid = True
-        if ai == "01" and len(value) == 14:  # GTIN-14
-            # Vérifier le chiffre de contrôle
+        if ai == "01" and value.isdigit() and len(value) in (8, 12, 13, 14):
+            # GTIN : normaliser vers 14 chiffres puis vérifier le chiffre de contrôle
+            value = pad_gtin14(value)
             is_valid = is_valid_gtin(value)
         
         # Enregistrer le résultat
         if verbose:
-            parsed.append({"ai": ai, "name": ai_name, "value": value, "valid": is_valid})
+            # gtin14 : champ additif, renseigné pour l'AI 01 (GTIN normalisé sur 14
+            # chiffres via pad_gtin14 plus haut), None pour les autres AI.
+            parsed.append({
+                "ai": ai,
+                "name": ai_name,
+                "value": value,
+                "valid": is_valid,
+                "gtin14": value if ai == "01" else None,
+            })
         else:
             simple_parsed[ai_name] = value
     
@@ -286,44 +305,69 @@ def parse_gs1(data, verbose=False):
 
 def is_valid_gtin(gtin):
     """
-    Vérifie si un GTIN est valide en calculant son chiffre de contrôle.
-    
+    Vérifie si un GTIN est valide en calculant son chiffre de contrôle (GS1 mod-10).
+
+    L'algorithme GS1 est identique pour toutes les longueurs (8, 12, 13, 14) :
+    parcourir le corps (tous les chiffres sauf le dernier) de droite à gauche,
+    en appliquant le poids 3 sur le chiffre le plus à droite du corps, puis
+    1, 3, 1... en alternance vers la gauche.
+
     Args:
         gtin (str): Le GTIN à vérifier
-        
+
     Returns:
         bool: True si le GTIN est valide
     """
     if not gtin or not gtin.isdigit():
         return False
-    
+
     # Longueurs valides pour un GTIN
     if len(gtin) not in (8, 12, 13, 14):
         return False
-    
-    # Extraire le chiffre de contrôle (dernier chiffre)
-    check_digit = int(gtin[-1])
-    
-    # Séquence de chiffres sans le chiffre de contrôle
+
+    # Corps = tous les chiffres sauf le chiffre de contrôle (dernier)
     digits = [int(d) for d in gtin[:-1]]
-    
-    # Calcul pour GTIN-8
-    if len(gtin) == 8:
-        weighted_sum = 3 * sum(digits[0::2]) + sum(digits[1::2])
-        
-    # Calcul pour GTIN-12, GTIN-13, GTIN-14
-    # L'algorithme est le même, avec alternance de poids 3 et 1, 
-    # en commençant par 3 pour la position la plus à droite
-    else:
-        # Pour les GTIN pairs (comme GTIN-12, GTIN-14), les positions paires sont multipliées par 3
-        # Pour les GTIN impairs (comme GTIN-13), les positions impaires sont multipliées par 3
-        if len(gtin) % 2 == 0:  # GTIN-12, GTIN-14
-            weighted_sum = 3 * sum(digits[1::2]) + sum(digits[0::2])
-        else:  # GTIN-13
-            weighted_sum = 3 * sum(digits[0::2]) + sum(digits[1::2])
-    
-    # Calculer le chiffre de contrôle
+
+    # Parcours de droite à gauche - index 0 = chiffre le plus à droite du corps (poids 3)
+    weighted_sum = sum(d * (3 if i % 2 == 0 else 1) for i, d in enumerate(reversed(digits)))
+
+    # Calculer le chiffre de contrôle attendu
     calculated = (10 - (weighted_sum % 10)) % 10
-    
-    # Vérifier si le chiffre calculé correspond au chiffre de contrôle
-    return calculated == check_digit
+
+    # Vérifier si le chiffre calculé correspond au dernier chiffre du GTIN
+    return calculated == int(gtin[-1])
+
+
+def pad_gtin14(value):
+    """
+    Normalise un GTIN court (8, 12, 13 chiffres) vers 14 chiffres par zéro-padding à gauche.
+    Un GTIN-14 est renvoyé inchangé. L'AI (01) de GS1 impose toujours 14 positions.
+
+    Args:
+        value (str): un GTIN de longueur 8, 12, 13 ou 14, uniquement des chiffres.
+
+    Returns:
+        str: le GTIN normalisé sur 14 chiffres.
+
+    Raises:
+        ValueError: si value n'est pas numérique ou n'a pas une longueur GTIN légale.
+    """
+    if not value or not value.isdigit() or len(value) not in (8, 12, 13, 14):
+        raise ValueError(f"GTIN invalide, longueur ou format illegal : {value!r}")
+    return value.zfill(14)
+
+
+def gtin_indicator(value):
+    """
+    Renvoie le chiffre indicateur d'un GTIN : le 1er chiffre du GTIN-14 normalisé.
+
+    Args:
+        value (str): un GTIN de longueur 8, 12, 13 ou 14.
+
+    Returns:
+        str: un seul caractère, le chiffre indicateur.
+
+    Raises:
+        ValueError: propagé depuis pad_gtin14 si value est illégal.
+    """
+    return pad_gtin14(value)[0]

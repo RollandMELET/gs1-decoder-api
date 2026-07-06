@@ -18,6 +18,9 @@ class ParsedVerboseItem(BaseModel):
     name: str
     value: str
     valid: bool
+    # Champ additif optionnel : GTIN normalisé sur 14 chiffres, renseigné
+    # uniquement pour l'AI 01, None pour les autres AI. Non cassant.
+    gtin14: Optional[str] = None
 
 class BarcodeItem(BaseModel):
     """Représentation d'un code-barres décodé avec métadonnées."""
