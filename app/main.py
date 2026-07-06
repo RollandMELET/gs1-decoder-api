@@ -618,8 +618,10 @@ def get_decoder_info_adjusted(raw_data: str, decoder_used_enum: DecoderType, for
 
     if detected_format_enum == DetectedBarcodeFormatEnum.UNKNOWN:
         if is_gs1:
-            from app.barcode_detector import has_datamatrix_characteristics, has_qrcode_characteristics
-            if decoder_used_enum == DecoderType.PYLIBDMTX :
+            from app.barcode_detector import has_datamatrix_characteristics, has_qrcode_characteristics, is_digital_link
+            if is_digital_link(raw_data):
+                detected_format_enum = DetectedBarcodeFormatEnum.GS1_QRCODE
+            elif decoder_used_enum == DecoderType.PYLIBDMTX :
                 detected_format_enum = DetectedBarcodeFormatEnum.GS1_DATAMATRIX
             elif has_datamatrix_characteristics(raw_data):
                  detected_format_enum = DetectedBarcodeFormatEnum.GS1_DATAMATRIX

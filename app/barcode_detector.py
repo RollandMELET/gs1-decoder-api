@@ -11,6 +11,8 @@ from enum import Enum
 import json
 import os
 
+from app.gs1_digital_link import is_digital_link
+
 class BarcodeFormat(str, Enum):
     # ... (inchangé) ...
     DATAMATRIX = "DataMatrix"
@@ -32,6 +34,8 @@ class DecoderType(str, Enum):
 
 def is_gs1_data(raw_data):
     if not isinstance(raw_data, str): return False
+    # Une URI GS1 Digital Link reconnue est bien des données GS1.
+    if is_digital_link(raw_data): return True
     ai_pattern = r"^(00|01|02|10|11|13|15|17|20|21|240|250|251|253|254|255|30|310[0-9]|311[0-9]|37|400|401|410|414|420|422|700[1-3]|800[1-8]|8020|9[0-9])"
     if '\x1d' in raw_data: return True
     if re.match(ai_pattern, raw_data) and re.fullmatch(r"[\dA-Z\-\.\/\x1d]+", raw_data, re.IGNORECASE):
@@ -121,7 +125,8 @@ def get_decoder_info(raw_data, decoder_used, format_hint=None, verbose=False):
             detected_format = BarcodeFormat.GS1_128 if is_gs1 else BarcodeFormat.CODE128
     if detected_format == BarcodeFormat.UNKNOWN:
         if is_gs1:
-            if has_datamatrix_characteristics(raw_data): detected_format = BarcodeFormat.GS1_DATAMATRIX
+            if is_digital_link(raw_data): detected_format = BarcodeFormat.GS1_QRCODE
+            elif has_datamatrix_characteristics(raw_data): detected_format = BarcodeFormat.GS1_DATAMATRIX
             elif has_qrcode_characteristics(raw_data): detected_format = BarcodeFormat.GS1_QRCODE
             else: detected_format = BarcodeFormat.GS1_128
         else:

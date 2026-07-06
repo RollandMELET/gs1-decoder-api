@@ -175,7 +175,17 @@ def parse_gs1(data, verbose=False):
     # On bypasse normalize_gs1_data ici car son remplacement '.'->GS corromprait
     # les valeurs du format lisible.
     stripped = data.strip()
-    if stripped.startswith("(") and re.fullmatch(r"(?:\(\d{2,4}\)[^(]*)+", stripped):
+    # Import local pour éviter un cycle d'import avec gs1_digital_link,
+    # qui importe pad_gtin14 depuis ce module.
+    from app.gs1_digital_link import is_digital_link, digital_link_to_gs1_string
+    if is_digital_link(stripped):
+        # Cas GS1 Digital Link : URI http(s) convertie en forme concaténée séparée
+        # par le GS. Un GTIN ou une URI malformés donnent un résultat vide.
+        try:
+            data = digital_link_to_gs1_string(stripped)
+        except ValueError:
+            return [] if verbose else {}
+    elif stripped.startswith("(") and re.fullmatch(r"(?:\(\d{2,4}\)[^(]*)+", stripped):
         segments = re.findall(r"\((\d{2,4})\)([^(]*)", stripped)
         data = "\x1d".join(ai + value for ai, value in segments)
     else:
