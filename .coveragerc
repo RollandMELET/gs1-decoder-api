@@ -1,0 +1,21 @@
+# Configuration de couverture (coverage.py / pytest-cov).
+# Lue automatiquement lors des runs `--cov`, notamment `make test-coverage`.
+[run]
+source = app
+omit =
+    */tests/*
+    */venv/*
+    */env/*
+    */__pycache__/*
+    */migrations/*
+    # Fichiers hérités morts, non importés par l'application : ils gonflaient
+    # artificiellement le dénominateur de couverture.
+    */*_old*.py
+
+[report]
+exclude_lines =
+    pragma: no cover
+    def __repr__
+    raise AssertionError
+    raise NotImplementedError
+    if __name__ == .__main__.:
